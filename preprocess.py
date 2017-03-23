@@ -1,7 +1,14 @@
+import argparse
+import os
+from collections import Counter, defaultdict, OrderedDict
+
+import torch
+from torchtext import datasets
+from torchtext.data import Dataset, Field, Pipeline
+from torchtext import vocab
+
 import onmt
 
-import argparse
-import torch
 
 parser = argparse.ArgumentParser(description='preprocess.py')
 
@@ -10,15 +17,16 @@ parser = argparse.ArgumentParser(description='preprocess.py')
 ##
 
 parser.add_argument('-config',    help="Read options from this file")
+parser.add_argument('-max_length', default=50, type=int)
 
-parser.add_argument('-train_src', required=True,
-                    help="Path to the training source data")
-parser.add_argument('-train_tgt', required=True,
-                    help="Path to the training target data")
-parser.add_argument('-valid_src', required=True,
-                    help="Path to the validation source data")
-parser.add_argument('-valid_tgt', required=True,
-                     help="Path to the validation target data")
+parser.add_argument('-train', required=True,
+                    help="Path to the training data")
+parser.add_argument('-valid', required=True,
+                    help="Path to the validation data")
+parser.add_argument('-src', required=True,
+                     help="Extension for source data")
+parser.add_argument('-tgt', required=True,
+                     help="Extension for target data")
 
 parser.add_argument('-save_data', required=True,
                     help="Output file for the prepared data")
@@ -27,14 +35,6 @@ parser.add_argument('-src_vocab_size', type=int, default=50000,
                     help="Size of the source vocabulary")
 parser.add_argument('-tgt_vocab_size', type=int, default=50000,
                     help="Size of the target vocabulary")
-parser.add_argument('-src_vocab',
-                    help="Path to an existing source vocabulary")
-parser.add_argument('-tgt_vocab',
-                    help="Path to an existing target vocabulary")
-
-
-parser.add_argument('-seq_length', type=int, default=50,
-                    help="Maximum sequence length")
 parser.add_argument('-shuffle',    type=int, default=1,
                     help="Shuffle data")
 parser.add_argument('-seed',       type=int, default=3435,
@@ -45,138 +45,42 @@ parser.add_argument('-lower', action='store_true', help='lowercase data')
 parser.add_argument('-report_every', type=int, default=100000,
                     help="Report status every this many sentences")
 
+parser.add_argument('-wv_dir', type=str, default='data/glove')
+parser.add_argument('-wv_type', type=str, default='')
+parser.add_argument('-wv_dim', type=int, default=300)
+
 opt = parser.parse_args()
 
-
-def makeVocabulary(filename, size):
-    vocab = onmt.Dict([onmt.Constants.PAD_WORD, onmt.Constants.UNK_WORD,
-                       onmt.Constants.BOS_WORD, onmt.Constants.EOS_WORD], lower=opt.lower)
-
-    with open(filename) as f:
-        for sent in f.readlines():
-            for word in sent.split():
-                vocab.add(word)
-
-    originalSize = vocab.size()
-    vocab = vocab.prune(size)
-    print('Created dictionary of size %d (pruned from %d)' %
-          (vocab.size(), originalSize))
-
-    return vocab
-
-
-def initVocabulary(name, dataFile, vocabFile, vocabSize):
-
-    vocab = None
-    if vocabFile is not None:
-        # If given, load existing word dictionary.
-        print('Reading ' + name + ' vocabulary from \'' + vocabFile + '\'...')
-        vocab = onmt.Dict()
-        vocab.loadFile(vocabFile)
-        print('Loaded ' + vocab.size() + ' ' + name + ' words')
-
-    if vocab is None:
-        # If a dictionary is still missing, generate it.
-        print('Building ' + name + ' vocabulary...')
-        genWordVocab = makeVocabulary(dataFile, vocabSize)
-
-        vocab = genWordVocab
-
-    print()
-    return vocab
-
-
-def saveVocabulary(name, vocab, file):
-    print('Saving ' + name + ' vocabulary to \'' + file + '\'...')
-    vocab.writeFile(file)
-
-
-def makeData(srcFile, tgtFile, srcDicts, tgtDicts):
-    src, tgt = [], []
-    sizes = []
-    count, ignored = 0, 0
-
-    print('Processing %s & %s ...' % (srcFile, tgtFile))
-    srcF = open(srcFile)
-    tgtF = open(tgtFile)
-
-    while True:
-        srcWords = srcF.readline().split()
-        tgtWords = tgtF.readline().split()
-
-        if not srcWords or not tgtWords:
-            if srcWords and not tgtWords or not srcWords and tgtWords:
-                print('WARNING: source and target do not have the same number of sentences')
-            break
-
-        if len(srcWords) <= opt.seq_length and len(tgtWords) <= opt.seq_length:
-
-            src += [srcDicts.convertToIdx(srcWords,
-                                          onmt.Constants.UNK_WORD)]
-            tgt += [tgtDicts.convertToIdx(tgtWords,
-                                          onmt.Constants.UNK_WORD,
-                                          onmt.Constants.BOS_WORD,
-                                          onmt.Constants.EOS_WORD)]
-
-            sizes += [len(srcWords)]
-        else:
-            ignored += 1
-
-        count += 1
-
-        if count % opt.report_every == 0:
-            print('... %d sentences prepared' % count)
-
-    srcF.close()
-    tgtF.close()
-
-    if opt.shuffle == 1:
-        print('... shuffling sentences')
-        perm = torch.randperm(len(src))
-        src = [src[idx] for idx in perm]
-        tgt = [tgt[idx] for idx in perm]
-        sizes = [sizes[idx] for idx in perm]
-
-    print('... sorting sentences by size')
-    _, perm = torch.sort(torch.Tensor(sizes))
-    src = [src[idx] for idx in perm]
-    tgt = [tgt[idx] for idx in perm]
-
-    print('Prepared %d sentences (%d ignored due to length == 0 or > %d)' %
-          (len(src), ignored, opt.seq_length))
-
-    return src, tgt
-
+def filter_by_length(x):
+    return len(x.src) < opt.max_length and len(x.tgt) < opt.max_length
 
 def main():
 
-    dicts = {}
-    dicts['src'] = initVocabulary('source', opt.train_src, opt.src_vocab,
-                                  opt.src_vocab_size)
-    dicts['tgt'] = initVocabulary('target', opt.train_tgt, opt.tgt_vocab,
-                                  opt.tgt_vocab_size)
+    src = Field(lower=opt.lower, include_lengths=True)
+    tgt = Field(init_token=onmt.Constants.BOS_WORD, eos_token=onmt.Constants.EOS_WORD, lower=opt.lower, include_lengths=True)
+    train = datasets.TranslationDataset(
+        path=opt.train, exts=(opt.src, opt.tgt),
+        fields=(src, tgt), filter_pred=filter_by_length)
+    valid = datasets.TranslationDataset(
+        path=opt.valid, exts=(opt.src, opt.tgt),
+        fields=(src, tgt))
+    src.build_vocab(train, max_size=opt.src_vocab_size, wv_dir=opt.wv_dir, wv_type=opt.wv_type, wv_dim=opt.wv_dim)
+    tgt.build_vocab(train, max_size=opt.tgt_vocab_size)
 
-    print('Preparing training ...')
-    train = {}
-    train['src'], train['tgt'] = makeData(opt.train_src, opt.train_tgt,
-                                          dicts['src'], dicts['tgt'])
+    ofile = opt.save_data + '.'
+    if opt.lower:
+        ofile += 'low.'
+    if opt.wv_type:
+        ofile += opt.wv_type + '.' + str(opt.wv_dim) + '.'
+    ofile += 'pt'
 
-    print('Preparing validation ...')
-    valid = {}
-    valid['src'], valid['tgt'] = makeData(opt.valid_src, opt.valid_tgt,
-                                    dicts['src'], dicts['tgt'])
-
-    if opt.src_vocab is None:
-        saveVocabulary('source', dicts['src'], opt.save_data + '.src.dict')
-    if opt.tgt_vocab is None:
-        saveVocabulary('target', dicts['tgt'], opt.save_data + '.tgt.dict')
-
-
-    print('Saving data to \'' + opt.save_data + '.train.pt\'...')
-    save_data = {'dicts': dicts,
+    print('Saving data to \'' + ofile + '\'')
+    save_data = {'src': src,
+                 'tgt': tgt,
                  'train': train,
-                 'valid': valid}
-    torch.save(save_data, opt.save_data + '.train.pt')
+                 'valid': valid
+                }
+    torch.save(save_data, ofile)
 
 
 if __name__ == "__main__":
