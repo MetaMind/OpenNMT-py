@@ -244,34 +244,39 @@ def main():
 
     print("Loading data from '%s'" % opt.data)
 
-    dataset = torch.load(opt.data)
+    data = torch.load(opt.data)
+    src = data['src']
+    tgt = data['tgt']
+    train = data['train']
+    valid = data['valid']
 
-    dict_checkpoint = opt.train_from if opt.train_from else opt.train_from_state_dict
-    if dict_checkpoint:
-        print('Loading dicts from checkpoint at %s' % dict_checkpoint)
-        checkpoint = torch.load(dict_checkpoint)
-        dataset['dicts'] = checkpoint['dicts']
+    load_from = opt.train_from or opt.train_from_state_dict
+    if load_from:
+        print('Loading fields from checkpoint at %s' % load_from)
+        checkpoint = torch.load(load_from)
+        src = checkpoint['src']
+        tgt = checkpoint['tgt']
 
-    trainData = onmt.Dataset(dataset['train']['src'],
-                             dataset['train']['tgt'], opt.batch_size, opt.gpus)
-    validData = onmt.Dataset(dataset['valid']['src'],
-                             dataset['valid']['tgt'], opt.batch_size, opt.gpus,
-                             volatile=True)
+    train_iter = BucketIterator(
+        train, opt.batch_size,
+        device=opt.gpus[0], repeat=False)
 
-    dicts = dataset['dicts']
-    print(' * vocabulary size. source = %d; target = %d' %
-          (dicts['src'].size(), dicts['tgt'].size()))
-    print(' * number of training sentences. %d' %
-          len(dataset['train']['src']))
-    print(' * maximum batch size. %d' % opt.batch_size)
+    valid_iter = BucketIterator(
+        valid, opt.batch_size,
+        train=False, device=opt.gpus[0], repeat=False)
+
+    print(' * vocabulary size. source = {}; target = {}'.format(len(src.vocab), len(tgt.vocab)))
+    print(' * number of training sentences. {}'.format(len(train)))
+    print(' * number of validation sentences. {}'.format(len(valid)))
+    print(' * maximum batch size. {}'.format(opt.batch_size))
 
     print('Building model...')
 
-    encoder = onmt.Models.Encoder(opt, dicts['src'])
-    decoder = onmt.Models.Decoder(opt, dicts['tgt'])
+    encoder = onmt.Models.Encoder(opt, src)
+    decoder = onmt.Models.Decoder(opt, tgt)
 
     generator = nn.Sequential(
-        nn.Linear(opt.rnn_size, dicts['tgt'].size()),
+        nn.Linear(opt.rnn_size, len(tgt.vocab)),
         nn.LogSoftmax())
 
     model = onmt.Models.NMTModel(encoder, decoder)
@@ -326,7 +331,13 @@ def main():
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
 
-    trainModel(model, trainData, validData, dataset, optim)
+    model.src_pad = src.vocab.stoi[onmt.Constants.PAD_WORD]
+    model.tgt_pad = tgt.vocab.stoi[onmt.Constants.PAD_WORD]
+    model.tgt_eos = tgt.vocab.stoi[onmt.Constants.EOS_WORD]
+    model.tgt_bos = tgt.vocab.stoi[onmt.Constants.BOS_WORD]
+
+
+    train_model(src, tgt, train_iter, valid_iter, model, optim)
 
 
 if __name__ == "__main__":
