@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pack_padded_sequence as pack
 
 class Encoder(nn.Module):
 
-    def __init__(self, opt, dicts):
+    def __init__(self, opt, src):
         self.layers = opt.layers
         self.num_directions = 2 if opt.brnn else 1
         assert opt.rnn_size % self.num_directions == 0
@@ -15,17 +15,16 @@ class Encoder(nn.Module):
         input_size = opt.word_vec_size
 
         super(Encoder, self).__init__()
-        self.word_lut = nn.Embedding(dicts.size(),
+        self.word_lut = nn.Embedding(len(src.vocab),
                                   opt.word_vec_size,
-                                  padding_idx=onmt.Constants.PAD)
+                                  padding_idx=src.vocab.stoi[onmt.Constants.PAD_WORD])
         self.rnn = nn.LSTM(input_size, self.hidden_size,
                         num_layers=opt.layers,
                         dropout=opt.dropout,
                         bidirectional=opt.brnn)
 
-        if opt.pre_word_vecs_enc is not None:
-            pretrained = torch.load(opt.pre_word_vecs_enc)
-            self.word_lut.weight.copy_(pretrained)
+        if hasattr(src.vocab, 'vectors'):
+            self.word_lut.weight.data.copy_(src.vocab.vectors)
 
     def forward(self, input, hidden=None):
         if isinstance(input, tuple):
@@ -68,26 +67,26 @@ class StackedLSTM(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, opt, dicts):
+    def __init__(self, opt, tgt):
         self.layers = opt.layers
         self.input_feed = opt.input_feed
+        self.max_length = opt.max_length
         input_size = opt.word_vec_size
         if self.input_feed:
             input_size += opt.rnn_size
 
         super(Decoder, self).__init__()
-        self.word_lut = nn.Embedding(dicts.size(),
+        self.word_lut = nn.Embedding(len(tgt.vocab),
                                   opt.word_vec_size,
-                                  padding_idx=onmt.Constants.PAD)
+                                  padding_idx=tgt.vocab.stoi[onmt.Constants.PAD_WORD])
         self.rnn = StackedLSTM(opt.layers, input_size, opt.rnn_size, opt.dropout)
         self.attn = onmt.modules.GlobalAttention(opt.rnn_size)
         self.dropout = nn.Dropout(opt.dropout)
 
         self.hidden_size = opt.rnn_size
 
-        if opt.pre_word_vecs_enc is not None:
-            pretrained = torch.load(opt.pre_word_vecs_dec)
-            self.word_lut.weight.copy_(pretrained)
+        if hasattr(tgt.vocab, 'vectors'):
+            self.word_lut.weight.data.copy_(tgt.vocab.vectors)
 
 
     def forward(self, input, hidden, context, init_output):
@@ -135,14 +134,13 @@ class NMTModel(nn.Module):
             return h
 
     def forward(self, input):
-        src = input[0]
-        tgt = input[1][:-1]  # exclude last target from inputs
-        enc_hidden, context = self.encoder(src)
+        enc_hidden, context = self.encoder(input.src)
         init_output = self.make_init_decoder_output(context)
 
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
 
+        tgt = input.tgt[0][:-1]  # exclude last target from inputs
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
 
         return out
