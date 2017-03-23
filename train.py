@@ -156,14 +156,14 @@ def eval(src, model, criterion, valid_iter, tgt):
     return total_loss / total_tgt_words, total_num_correct / total_tgt_words
 
 
-def trainModel(src, tgt, train_iter, valid_iter, model, optim)
+def trainModel(src, tgt, train_iter, valid_iter, model, optim):
     print(model)
     model.train()
 
     criterion = NMTCriterion(len(tgt.vocab), model.tgt_pad)
 
     start_time = time.time()
-    def trainEpoch(epoch):
+    def train_epoch(epoch):
 
         total_loss, total_tgt_words, total_num_correct = 0, 0, 0
         report_loss, report_tgt_words, report_src_words, report_num_correct = 0, 0, 0, 0
@@ -187,13 +187,13 @@ def trainModel(src, tgt, train_iter, valid_iter, model, optim)
             report_loss += loss
             report_num_correct += num_correct
             report_tgt_words += num_tgt_words
-            report_src_words += sum(batch[0][1])
+            report_src_words += sum(batch.src[1])
             total_loss += loss
             total_num_correct += num_correct
             total_tgt_words += num_tgt_words
             if i % opt.log_interval == -1 % opt.log_interval:
                 print("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; %3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed" %
-                      (epoch, i+1, len(trainData),
+                      (epoch, i+1, len(train_iter),
                       report_num_correct / report_tgt_words * 100,
                       math.exp(report_loss / report_tgt_words),
                       report_src_words/(time.time()-start),
@@ -209,7 +209,7 @@ def trainModel(src, tgt, train_iter, valid_iter, model, optim)
         print('')
 
         #  (1) train for one epoch on the training set
-        train_loss, train_acc = train_epoch(src, tgt, train_iter, model, epoch, criterion, optim)
+        train_loss, train_acc = train_epoch(epoch)
 
         train_ppl = math.exp(min(train_loss, 100))
         print('Train perplexity: %g' % train_ppl)
@@ -231,7 +231,8 @@ def trainModel(src, tgt, train_iter, valid_iter, model, optim)
         checkpoint = {
             'model': model_state_dict,
             'generator': generator_state_dict,
-            'dicts': dataset['dicts'],
+            'src': src,
+            'tgt': tgt,
             'opt': opt,
             'epoch': epoch,
             'optim': optim
@@ -251,7 +252,7 @@ def trainModel(src, tgt, train_iter, valid_iter, model, optim)
         save_model = '.'.join(details)
         
         torch.save(checkpoint,
-                   '%s_acc_%.2f_ppl_%.2f_e%d.pt' % (opt.save_model, 100*valid_acc, valid_ppl, epoch))
+                   '%s_acc_%.2f_ppl_%.2f_e%d.pt' % (save_model, 100*valid_acc, valid_ppl, epoch))
 
 def main():
 
@@ -327,8 +328,8 @@ def main():
             p.data.uniform_(-opt.param_init, opt.param_init)
 
         optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            lr_decay=opt.learning_rate_decay,
+            opt.optim, opt.lr, opt.max_grad_norm,
+            lr_decay=opt.lr_decay,
             start_decay_at=opt.start_decay_at
         )
     else:
