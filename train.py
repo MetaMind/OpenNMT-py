@@ -107,92 +107,90 @@ def NMTCriterion(vocabSize, pad_token):
     return crit
 
 
-def memoryEfficientLoss(outputs, targets, generator, crit, eval=False):
+def memoryEfficientLoss(tgt, model, outputs, tgts, crit, eval=False):
     # compute generations one piece at a time
     num_correct, loss = 0, 0
     outputs = Variable(outputs.data, requires_grad=(not eval), volatile=eval)
 
     batch_size = outputs.size(1)
     outputs_split = torch.split(outputs, opt.max_generator_batches)
-    targets_split = torch.split(targets, opt.max_generator_batches)
-    for i, (out_t, targ_t) in enumerate(zip(outputs_split, targets_split)):
+    tgts_split = torch.split(tgts, opt.max_generator_batches)
+    predictions = []
+    for i, (out_t, targ_t) in enumerate(zip(outputs_split, tgts_split)):
         out_t = out_t.view(-1, out_t.size(2))
-        scores_t = generator(out_t)
+        scores_t = model.generator(out_t)
         loss_t = crit(scores_t, targ_t.view(-1))
         pred_t = scores_t.max(1)[1]
-        num_correct_t = pred_t.data.eq(targ_t.data).masked_select(targ_t.ne(onmt.Constants.PAD).data).sum()
+        if eval:
+            predictions.append(pred_t.view(*tgts.size()).t().data)
+        num_correct_t = pred_t.data.eq(targ_t.data).masked_select(targ_t.ne(model.tgt_pad).data).sum()
         num_correct += num_correct_t
         loss += loss_t.data[0]
         if not eval:
             loss_t.div(batch_size).backward()
 
     grad_output = None if outputs.grad is None else outputs.grad.data
-    return loss, grad_output, num_correct
+    predictions = torch.cat(predictions, 1).tolist() if eval else predictions
+    return loss, grad_output, num_correct 
 
 
-def eval(model, criterion, data):
+def eval(src, model, criterion, valid_iter, tgt):
     total_loss = 0
-    total_words = 0
+    total_tgt_words = 0
     total_num_correct = 0
 
     model.eval()
-    for i in range(len(data)):
-        batch = data[i][:-1] # exclude original indices
+    for i, batch in enumerate(valid_iter):
+        inputs = batch.src[0]
+        tgts = batch.tgt[0][1:] # do not include BOS as target
+        batch_size = tgts.size(1)
         outputs = model(batch)
-        targets = batch[1][1:]  # exclude <s> from targets
-        loss, _, num_correct = memoryEfficientLoss(
-                outputs, targets, model.generator, criterion, eval=True)
+        loss, _, num_correct = memoryEfficientLoss(tgt, model,
+                outputs, tgts, criterion, eval=True)
         total_loss += loss
         total_num_correct += num_correct
-        total_words += targets.data.ne(onmt.Constants.PAD).sum()
+        num_tgt_words = tgts.data.ne(model.tgt_pad).sum()
+        total_tgt_words += num_tgt_words
 
     model.train()
-    return total_loss / total_words, total_num_correct / total_words
+    return total_loss / total_tgt_words, total_num_correct / total_tgt_words
 
 
-def trainModel(model, trainData, validData, dataset, optim):
+def trainModel(src, tgt, train_iter, valid_iter, model, optim)
     print(model)
     model.train()
 
-    # define criterion of each GPU
-    criterion = NMTCriterion(dataset['dicts']['tgt'].size())
+    criterion = NMTCriterion(len(tgt.vocab), model.tgt_pad)
 
     start_time = time.time()
     def trainEpoch(epoch):
 
-        if opt.extra_shuffle and epoch > opt.curriculum:
-            trainData.shuffle()
-
-        # shuffle mini batch order
-        batchOrder = torch.randperm(len(trainData))
-
-        total_loss, total_words, total_num_correct = 0, 0, 0
+        total_loss, total_tgt_words, total_num_correct = 0, 0, 0
         report_loss, report_tgt_words, report_src_words, report_num_correct = 0, 0, 0, 0
         start = time.time()
-        for i in range(len(trainData)):
-
-            batchIdx = batchOrder[i] if epoch > opt.curriculum else i
-            batch = trainData[batchIdx][:-1] # exclude original indices
+        for i, batch in enumerate(train_iter):
+            inputs = batch.src[0]
+            tgts = batch.tgt[0][1:] # do not include BOS as target
+            batch_size = tgts.size(1)
 
             model.zero_grad()
             outputs = model(batch)
-            targets = batch[1][1:]  # exclude <s> from targets
-            loss, gradOutput, num_correct = memoryEfficientLoss(
-                    outputs, targets, model.generator, criterion)
+            loss, gradOutput, num_correct = memoryEfficientLoss(tgt, model,
+                    outputs, tgts, criterion)
 
             outputs.backward(gradOutput)
 
             # update the parameters
             optim.step()
 
-            num_words = targets.data.ne(onmt.Constants.PAD).sum()
+            num_tgt_words = tgts.data.ne(model.tgt_pad).sum()
             report_loss += loss
             report_num_correct += num_correct
-            report_tgt_words += num_words
+            report_tgt_words += num_tgt_words
             report_src_words += sum(batch[0][1])
             total_loss += loss
             total_num_correct += num_correct
-            total_words += num_words
+            total_tgt_words += num_tgt_words
             if i % opt.log_interval == -1 % opt.log_interval:
                 print("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; %3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed" %
                       (epoch, i+1, len(trainData),
@@ -205,19 +203,20 @@ def trainModel(model, trainData, validData, dataset, optim):
                 report_loss = report_tgt_words = report_src_words = report_num_correct = 0
                 start = time.time()
 
-        return total_loss / total_words, total_num_correct / total_words
+        return total_loss / total_tgt_words, total_num_correct / total_tgt_words
 
     for epoch in range(opt.start_epoch, opt.epochs + 1):
         print('')
 
         #  (1) train for one epoch on the training set
-        train_loss, train_acc = trainEpoch(epoch)
+        train_loss, train_acc = train_epoch(src, tgt, train_iter, model, epoch, criterion, optim)
+
         train_ppl = math.exp(min(train_loss, 100))
         print('Train perplexity: %g' % train_ppl)
         print('Train accuracy: %g' % train_acc)
 
         #  (2) evaluate on the validation set
-        valid_loss, valid_acc = eval(model, criterion, validData)
+        valid_loss, valid_acc = eval(src, model, criterion, valid_iter, tgt)
         valid_ppl = math.exp(min(valid_loss, 100))
         print('Validation perplexity: %g' % valid_ppl)
         print('Validation accuracy: %g' % (valid_acc*100))
@@ -237,6 +236,20 @@ def trainModel(model, trainData, validData, dataset, optim):
             'epoch': epoch,
             'optim': optim
         }
+
+        save_model, ext = os.path.splitext(os.path.basename(opt.data))
+        details = [save_model]
+        details.append(str(opt.layers) + 'l')
+        if opt.brnn:
+            details.append('brnn')
+        details.append(str(opt.word_vec_size) + 'wv')
+        details.append(str(opt.rnn_size) + 'h')
+        details.append(str(opt.batch_size) + 'bs')
+        details.append(str(opt.dropout) + 'dp')
+        details.append(str(opt.optim))
+        details.append(str(opt.lr) + 'lr')
+        save_model = '.'.join(details)
+        
         torch.save(checkpoint,
                    '%s_acc_%.2f_ppl_%.2f_e%d.pt' % (opt.save_model, 100*valid_acc, valid_ppl, epoch))
 
@@ -337,7 +350,7 @@ def main():
     model.tgt_bos = tgt.vocab.stoi[onmt.Constants.BOS_WORD]
 
 
-    train_model(src, tgt, train_iter, valid_iter, model, optim)
+    trainModel(src, tgt, train_iter, valid_iter, model, optim)
 
 
 if __name__ == "__main__":
