@@ -15,8 +15,10 @@ import onmt
 
 
 class Beam(object):
-    def __init__(self, size, cuda=False):
-
+    def __init__(self, size, cuda, pad, bos, eos):
+        self.pad = pad
+        self.bos = bos
+        self.eos = eos
         self.size = size
         self.done = False
 
@@ -29,8 +31,8 @@ class Beam(object):
         self.prevKs = []
 
         # The outputs at each time-step.
-        self.nextYs = [self.tt.LongTensor(size).fill_(onmt.Constants.PAD)]
-        self.nextYs[0][0] = onmt.Constants.BOS
+        self.nextYs = [self.tt.LongTensor(size).fill_(pad)]
+        self.nextYs[0][0] = bos
 
         # The attentions (matrix) for each time.
         self.attn = []
@@ -75,7 +77,7 @@ class Beam(object):
         self.attn.append(attnOut.index_select(0, prevK))
 
         # End condition is when top-of-beam is EOS.
-        if self.nextYs[-1][0] == onmt.Constants.EOS:
+        if self.nextYs[-1][0] == self.eos:
             self.done = True
 
         return self.done

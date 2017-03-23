@@ -352,7 +352,6 @@ def main():
     model.tgt_eos = tgt.vocab.stoi[onmt.Constants.EOS_WORD]
     model.tgt_bos = tgt.vocab.stoi[onmt.Constants.BOS_WORD]
 
-
     trainModel(src, tgt, train_iter, valid_iter, model, optim)
 
 

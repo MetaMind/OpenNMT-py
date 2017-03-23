@@ -9,7 +9,9 @@ import onmt
 
 class Dataset(object):
 
-    def __init__(self, srcData, tgtData, batchSize, cuda, volatile=False):
+    def __init__(self, srcData, tgtData, batchSize, cuda, volatile=False, spt=1, tpt=1):
+        self.src_pad_token = 1
+        self.tgt_pad_token = 1
         self.src = srcData
         if tgtData:
             self.tgt = tgtData
@@ -22,10 +24,10 @@ class Dataset(object):
         self.numBatches = math.ceil(len(self.src)/batchSize)
         self.volatile = volatile
 
-    def _batchify(self, data, align_right=False, include_lengths=False):
+    def _batchify(self, data, align_right=False, include_lengths=False, pad_token=1):
         lengths = [x.size(0) for x in data]
         max_length = max(lengths)
-        out = data[0].new(len(data), max_length).fill_(onmt.Constants.PAD)
+        out = data[0].new(len(data), max_length).fill_(pad_token)
         for i in range(len(data)):
             data_length = data[i].size(0)
             offset = max_length - data_length if align_right else 0
@@ -40,11 +42,11 @@ class Dataset(object):
         assert index < self.numBatches, "%d > %d" % (index, self.numBatches)
         srcBatch, lengths = self._batchify(
             self.src[index*self.batchSize:(index+1)*self.batchSize],
-            align_right=False, include_lengths=True)
+            align_right=False, include_lengths=True, pad_token=self.src_pad_token)
 
         if self.tgt:
             tgtBatch = self._batchify(
-                self.tgt[index*self.batchSize:(index+1)*self.batchSize])
+                self.tgt[index*self.batchSize:(index+1)*self.batchSize], pad_token=self.tgt_pad_token)
         else:
             tgtBatch = None
 
