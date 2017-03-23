@@ -23,8 +23,6 @@ parser.add_argument('-train_from_state_dict', default='', type=str,
 parser.add_argument('-train_from', default='', type=str,
                     help="""If training from a checkpoint then this is the
                     path to the pretrained model.""")
-parser.add_argument('-max_length', default=100, type=int,
-                    help="""Maximum length of a generated sentence""")
 
 ## Model options
 

@@ -70,7 +70,6 @@ class Decoder(nn.Module):
     def __init__(self, opt, tgt):
         self.layers = opt.layers
         self.input_feed = opt.input_feed
-        self.max_length = opt.max_length
         input_size = opt.word_vec_size
         if self.input_feed:
             input_size += opt.rnn_size
