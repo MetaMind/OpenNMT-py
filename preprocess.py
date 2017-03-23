@@ -52,7 +52,7 @@ parser.add_argument('-wv_dim', type=int, default=300)
 opt = parser.parse_args()
 
 def filter_by_length(x):
-    return len(x.src) < opt.max_length and len(x.tgt) < opt.max_length
+    return len(x.src) <= opt.max_length and len(x.tgt) <= opt.max_length
 
 def main():
 
