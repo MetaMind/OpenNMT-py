@@ -155,6 +155,8 @@ def eval(src, model, criterion, valid_iter, tgt):
     model.train()
     return total_loss / total_tgt_words, total_num_correct / total_tgt_words
 
+def sort_key(ex):
+    return len(ex.src)
 
 def trainModel(src, tgt, train_iter, valid_iter, model, optim):
     print(model)
@@ -273,11 +275,11 @@ def main():
 
     train_iter = BucketIterator(
         train, opt.batch_size,
-        device=opt.gpus[0], repeat=False)
+        device=opt.gpus[0], repeat=False, scale=len(train), sort_key=sort_key)
 
     valid_iter = BucketIterator(
         valid, opt.batch_size,
-        train=False, device=opt.gpus[0], repeat=False)
+        train=False, device=opt.gpus[0], repeat=False, sort_key=sort_key)
 
     print(' * vocabulary size. source = {}; target = {}'.format(len(src.vocab), len(tgt.vocab)))
     print(' * number of training sentences. {}'.format(len(train)))

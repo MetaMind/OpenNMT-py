@@ -63,7 +63,7 @@ def main():
         fields=(src, tgt), filter_pred=filter_by_length)
     valid = datasets.TranslationDataset(
         path=opt.valid, exts=(opt.src, opt.tgt),
-        fields=(src, tgt))
+        fields=(src, tgt), filter_pred=filter_by_length)
     src.build_vocab(train, max_size=opt.src_vocab_size, wv_dir=opt.wv_dir, wv_type=opt.wv_type, wv_dim=opt.wv_dim)
     tgt.build_vocab(train, max_size=opt.tgt_vocab_size)
 
