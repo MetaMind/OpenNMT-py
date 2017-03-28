@@ -6,34 +6,18 @@ an open-source (MIT) neural machine translation system.
 
 <center style="padding: 40px"><img width="70%" src="http://opennmt.github.io/simple-attn.png" /></center>
 
-## Quickstart
-
-### 0) Download the data.
-
-```wget https://s3.amazonaws.com/pytorch/examples/opennmt/data/onmt-data.tar && tar -xf onmt-data.tar```
-
-### 1) Preprocess the data.
-
-```python preprocess.py -train_src data/src-train.txt -train_tgt data/tgt-train.txt -valid_src data/src-val.txt -valid_tgt data/tgt-val.txt -save_data data/demo```
-
-### 2) Train the model.
-
-```python train.py -data data/demo-train.pt -save_model demo_model -gpus 0```
-
-### 3) Translate sentences.
-
-```python translate.py -gpu 0 -model demo_model_e13_*.pt -src data/src-test.txt -tgt data/tgt-test.txt -replace_unk -verbose -output demo_pred.txt```
-
-### 4) Evaluate.
+# Requirements
 
 ```bash
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
+wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.de
+wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
+sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
-perl multi-bleu.perl data/tgt-test.txt < demo_pred.txt
 ```
 
 ## WMT'16 Multimodal Translation: Multi30k (de-en)
-
-Data might not come as clean as the demo data. Here is a second example that uses the Moses tokenizer (http://www.statmt.org/moses/) to prepare the Multi30k data from the WMT'16 Multimodal Translation task (http://www.statmt.org/wmt16/multimodal-task.html).
 
 ### 0) Download the data.
 
@@ -47,58 +31,69 @@ wget https://staff.fnwi.uva.nl/d.elliott/wmt16/mmt16_task1_test.tgz && tar -xf m
 ### 1) Preprocess the data.
 
 ```bash
-wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
-wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
-wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.de
-wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
-sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl
 for l in en de; do for f in data/multi30k/*.$l; do if [[ "$f" != *"test"* ]]; then sed -i "$ d" $f; fi;  done; done
 for l in en de; do for f in data/multi30k/*.$l; do perl tokenizer.perl -a -no-escape -l $l -q  < $f > $f.atok; do perl lowercase.perl < $f.atok > $f.atok.low; done; done
-python preprocess.py -train_src data/multi30k/train.en.atok -train_tgt data/multi30k/train.de.atok -valid_src data/multi30k/val.en.atok -valid_tgt data/multi30k/val.de.atok -save_data data/multi30k.atok.low -lower
+for l in en de; do for f in data/multi30k/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; do perl lowercase.perl < $f.tok > $f.tok.low; done; done
+python preprocess.py -train_src data/multi30k/train.en.atok.low -train_tgt data/multi30k/train.de.atok.low -valid_src data/multi30k/val.en.atok.low -valid_tgt data/multi30k/val.de.atok.low -save_data data/multi30k.atok.low -lower
+python preprocess.py -train_src data/multi30k/train.en.tok.low -train_tgt data/multi30k/train.de.tok.low -valid_src data/multi30k/val.en.tok.low -valid_tgt data/multi30k/val.de.tok.low -save_data data/multi30k.tok.low -lower
 ```
 
 ### 2) Train the model.
 
-```python train.py -data data/multi30k.atok.low.train.pt -save_model multi30k_model -gpus 0```
+```bash
+python train.py -data data/multi30k.atok.low.train.pt -save_model multi30k.atok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2
+python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2
+```
 
 ### 3) Translate sentences.
 
 ```bash
-python translate.py -gpu 0 -model multi30k_model_e13_*.pt -src data/multi30k/test.en.atok -tgt data/multi30k/test.de.atok -replace_unk -verbose -output multi30k.test.pred.atok
+python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.atok.low -tgt data/multi30k/test.de.atok.low -replace_unk -verbose -output multi30k.atok.low.test.pred
+python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.tok.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.tok.low.test.pred
 ```
 
 ### 4) Evaluate.
 
 ```bash
-wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
-perl multi-bleu.perl data/multi30k/test.de.atok < multi30k.test.pred.atok
+perl multi-bleu.perl data/multi30k/test.de.atok.low < multi30k.atok.low.test.pred
+perl multi-bleu.perl data/multi30k/test.de.tok.low < multi30k.tok.low.test.pred
 ```
 
-## Pretrained Models
+## IWSLT'16 (de-en)
 
-The following pretrained models can be downloaded and used with translate.py.
+### 0) Download the data.
 
-- [onmt_model_en_de_200k](https://s3.amazonaws.com/pytorch/examples/opennmt/models/onmt_model_en_de_200k-4783d9c3.pt): An English-German translation model based on the 200k sentence dataset at [OpenNMT/IntegrationTesting](https://github.com/OpenNMT/IntegrationTesting/tree/master/data). Perplexity: 21.
-- [onmt_model_en_fr_b1M](https://s3.amazonaws.com/pytorch/examples/opennmt/models/onmt_model_en_fr_b1M-261c69a7.pt): An English-French model trained on benchmark-1M. Perplexity: 4.85.
+```bash
+mkdir -p data/iwslt16
+wget https://wit3.fbk.eu/archive/2016-01//texts/de/en/de-en.tgz && tar -xf de-en.tgz -C data
+```
 
-## Release Notes
+### 1) Preprocess the data.
 
-The following OpenNMT features are implemented:
+```bash
+python iwslt_xml2txt.py data/de-en -a
+python iwslt_xml2txt.py data/de-en
+python preprocess.py -train_src data/de-en/train.de-en.en.atok -train_tgt data/de-en/train.de-en.de.atok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.atok -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.atok -save_data data/iwslt16.atok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
+python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.tok -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
+```
 
-- multi-layer bidirectional RNNs with attention and dropout
-- data preprocessing
-- saving and loading from checkpoints
-- inference (translation) with batching and beam search
+### 2) Train the model.
 
-Not yet implemented:
+```bash
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2
+python train.py -data data/iwslt16.atok.low.train.pt -save_model iwslt16.atok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2
+```
 
-- word features
-- multi-GPU
-- residual connections
+### 3) Translate sentences.
 
-## Performance
+```bash
+python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT.TED.tst2014.en.atok -tgt data/de-en/IWSLT.TED.tst2014.de.atok -replace_unk -verbose -output iwslt.ted.tst2014.atok.low.pred
+python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT.TED.tst2014.en.tok -tgt data/de-en/IWSLT.TED.tst2014.de.tok -replace_unk -verbose -output iwslt.ted.tst2014.tok.low.pred
+```
 
-With default parameters on a single Maxwell GPU, this version runs about 70% faster than the Lua torch OpenNMT. The improved performance comes from two main sources:
+### 4) Evaluate.
 
-- CuDNN is used for the encoder (although not for the decoder, since it can't handle attention)
-- The decoder softmax layer is batched to efficiently trade off CPU vs. memory efficiency; this can be tuned with the -max_generator_batches parameter.
+```bash
+perl multi-bleu.perl data/de-en/IWSLT.TED.tst2014.de.atok < iwslt.ted.tst2014.atok.low.pred
+perl multi-bleu.perl data/de-en/IWSLT.TED.tst2014.de.tok < iwslt.ted.tst2014.tok.low.pred
+```
