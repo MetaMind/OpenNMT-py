@@ -25,7 +25,7 @@ class Encoder(nn.Module):
 
         if opt.pre_word_vecs_enc is not None:
             pretrained = torch.load(opt.pre_word_vecs_enc)
-            self.word_lut.weight.copy_(pretrained)
+            self.word_lut.weight.data.copy_(pretrained)
 
     def forward(self, input, hidden=None):
         if isinstance(input, tuple):
@@ -85,9 +85,9 @@ class Decoder(nn.Module):
 
         self.hidden_size = opt.rnn_size
 
-        if opt.pre_word_vecs_enc is not None:
+        if opt.pre_word_vecs_dec is not None:
             pretrained = torch.load(opt.pre_word_vecs_dec)
-            self.word_lut.weight.copy_(pretrained)
+            self.word_lut.weight.data.copy_(pretrained)
 
 
     def forward(self, input, hidden, context, init_output):
