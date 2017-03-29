@@ -87,13 +87,13 @@ python train.py -data data/iwslt16.atok.low.train.pt -save_model iwslt16.atok.lo
 ### 3) Translate sentences.
 
 ```bash
-python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT.TED.tst2014.en.atok -tgt data/de-en/IWSLT.TED.tst2014.de.atok -replace_unk -verbose -output iwslt.ted.tst2014.atok.low.pred
-python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT.TED.tst2014.en.tok -tgt data/de-en/IWSLT.TED.tst2014.de.tok -replace_unk -verbose -output iwslt.ted.tst2014.tok.low.pred
+python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT16.TED.tst2014.de-en.en.atok -tgt data/de-en/IWSLT16.TED.tst2014.de-en.de.atok -replace_unk -verbose -output iwslt.ted.tst2014.de-en.atok.low.pred
+python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT16.TED.tst2014.de-en.en.tok -tgt data/de-en/IWSLT16.TED.tst2014.de-en.de.tok -replace_unk -verbose -output iwslt.ted.tst2014.de-en.tok.low.pred
 ```
 
 ### 4) Evaluate.
 
 ```bash
-perl multi-bleu.perl data/de-en/IWSLT.TED.tst2014.de.atok < iwslt.ted.tst2014.atok.low.pred
-perl multi-bleu.perl data/de-en/IWSLT.TED.tst2014.de.tok < iwslt.ted.tst2014.tok.low.pred
+perl multi-bleu.perl data/de-en/IWSLT16.TED.tst2014.de-en.de.atok < iwslt.ted.tst2014.de-en.atok.low.pred
+perl multi-bleu.perl data/de-en/IWSLT16.TED.tst2014.de-en.de.tok < iwslt.ted.tst2014.de-en.tok.low.pred
 ```
