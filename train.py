@@ -100,6 +100,7 @@ parser.add_argument('-pre_word_vecs_dec',
                     help="""If a valid path is specified, then this will load
                     pretrained word embeddings on the decoder side.
                     See README for specific formatting instructions.""")
+parser.add_argument('-detach_embedding', default=0, type=int)
 
 # GPU
 parser.add_argument('-gpus', default=[], nargs='+', type=int,

@@ -8,6 +8,8 @@ from torch.nn.utils.rnn import pack_padded_sequence as pack
 class Encoder(nn.Module):
 
     def __init__(self, opt, dicts):
+        self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
+        self.count = 0
         self.layers = opt.layers
         self.num_directions = 2 if opt.brnn else 1
         assert opt.rnn_size % self.num_directions == 0
@@ -29,12 +31,17 @@ class Encoder(nn.Module):
 
     def forward(self, input, hidden=None):
         if isinstance(input, tuple):
-            emb = pack(self.word_lut(input[0]), input[1])
+            emb = self.word_lut(input[0])
         else:
             emb = self.word_lut(input)
+        if self.count < self.detach_embedding:
+            emb = emb.detach()
+        if isinstance(input, tuple):
+            emb = pack(emb, input[1])
         outputs, hidden_t = self.rnn(emb, hidden)
         if isinstance(input, tuple):
             outputs = unpack(outputs)[0]
+        self.count += 1
         return hidden_t, outputs
 
 
