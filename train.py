@@ -235,7 +235,7 @@ def trainModel(model, trainData, validData, dataset, optim):
         train_loss, train_acc = trainEpoch(epoch)
         train_ppl = math.exp(min(train_loss, 100))
         print('Train perplexity: %g' % train_ppl)
-        print('Train accuracy: %g' % train_acc)
+        print('Train accuracy: %g' % (train_acc*100))
 
         #  (2) evaluate on the validation set
         valid_loss, valid_acc = eval(model, criterion, validData)
@@ -328,6 +328,9 @@ def main():
     if not opt.train_from_state_dict and not opt.train_from:
         for p in model.parameters():
             p.data.uniform_(-opt.param_init, opt.param_init)
+
+        encoder.load_pretrained_vectors(opt)
+        decoder.load_pretrained_vectors(opt)
 
         optim = onmt.Optim(
             opt.optim, opt.learning_rate, opt.max_grad_norm,
