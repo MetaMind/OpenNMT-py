@@ -88,7 +88,7 @@ class Decoder(nn.Module):
                                   opt.word_vec_size,
                                   padding_idx=onmt.Constants.PAD)
         self.rnn = StackedLSTM(opt.layers, input_size, opt.rnn_size, opt.dropout)
-        self.attn = onmt.modules.GlobalAttention(opt.rnn_size)
+        self.attn = onmt.modules.GlobalAttention(opt.rnn_size, opt.dot)
         self.dropout = nn.Dropout(opt.dropout)
 
         self.hidden_size = opt.rnn_size

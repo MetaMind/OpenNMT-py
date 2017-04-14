@@ -42,6 +42,8 @@ parser.add_argument('-input_feed', type=int, default=1,
 #                     help="Add residual connections between RNN layers.")
 parser.add_argument('-brnn', action='store_true',
                     help='Use a bidirectional encoder')
+parser.add_argument('-dot', action='store_true',
+                    help='Use dot attention')
 parser.add_argument('-brnn_merge', default='concat',
                     help="""Merge action for the bidirectional hidden states:
                     [concat|sum]""")
@@ -54,7 +56,7 @@ parser.add_argument('-max_generator_batches', type=int, default=32,
                     help="""Maximum batches of words in a sequence to run
                     the generator on in parallel. Higher is faster, but uses
                     more memory.""")
-parser.add_argument('-epochs', type=int, default=13,
+parser.add_argument('-epochs', type=int, default=50,
                     help='Number of training epochs')
 parser.add_argument('-start_epoch', type=int, default=1,
                     help='The epoch from which to start')

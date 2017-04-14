@@ -25,13 +25,14 @@ import torch.nn as nn
 import math
 
 class GlobalAttention(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, dot=False):
         super(GlobalAttention, self).__init__()
         self.linear_in = nn.Linear(dim, dim, bias=False)
         self.sm = nn.Softmax()
         self.linear_out = nn.Linear(dim*2, dim, bias=False)
         self.tanh = nn.Tanh()
         self.mask = None
+        self.dot = dot
 
     def applyMask(self, mask):
         self.mask = mask
@@ -41,7 +42,10 @@ class GlobalAttention(nn.Module):
         input: batch x dim
         context: batch x sourceL x dim
         """
-        targetT = self.linear_in(input).unsqueeze(2)  # batch x dim x 1
+        if not self.dot:
+            targetT = self.linear_in(input).unsqueeze(2)  # batch x dim x 1
+        else:
+            targetT = input.unsqueeze(2)
 
         # Get attention
         attn = torch.bmm(context, targetT).squeeze(2)  # batch x sourceL
