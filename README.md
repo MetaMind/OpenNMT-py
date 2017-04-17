@@ -6,25 +6,20 @@ an open-source (MIT) neural machine translation system.
 
 <center style="padding: 40px"><img width="70%" src="http://opennmt.github.io/simple-attn.png" /></center>
 
-<<<<<<< HEAD
 # Requirements
 
 ```bash
-wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
-wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
 =======
-## Quickstart
-
 ## Some useful tools:
 
 The example below uses the Moses tokenizer (http://www.statmt.org/moses/) to prepare the data and the moses BLEU script for evaluation.
 
 ```bash
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
->>>>>>> origin_master
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
+sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl
 wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.de
 wget https://github.com/moses-smt/mosesdecoder/blob/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
-sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
 ```
 
@@ -103,3 +98,30 @@ python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT16.TED.tst2014
 ```bash
 perl multi-bleu.perl data/de-en/IWSLT16.TED.tst2014.de-en.de.tok < iwslt.ted.tst2014.de-en.tok.low.pred
 ```
+
+##WMt'17 (de-en)
+
+### 0) Download the data.
+
+```bash
+mkdir -p data/wmt17
+```
+
+### 1) Preporcess the data.
+
+```bash
+python wmt_clean.pyt
+for l in en de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
+for l in en de; do for f in data/wmt17/test/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
+python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en	n.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
+python get_glove_for_dict.py data/news-commentary.tok.low.src.dict
+```
+### 2) Train the model
+
+```bash
+python train.py -data data/news-commentary.tok.low.train.pt  -save_model news-commentary.tok.low.fixed_glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300  -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/news-commentary.tok.low.src.dict.glove -detach_embed 100000000000 
+```
+
+### 3) Translate sentences.
+
+### 4) Evaluate.
