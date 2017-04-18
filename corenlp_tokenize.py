@@ -55,7 +55,7 @@ def annotate_sentence(corenlp, gloss):
     return token_str
 
 with open(opt.input_fn, 'r') as f:
-    with open(opt.output_fn, 'a') as f2:
+    with open(opt.output_fn, 'w') as f2:
         for sent in f.readlines():
             #json.dump(annotate_sentence(corenlp, sent), f2)
             f2.write(annotate_sentence(corenlp, sent))
