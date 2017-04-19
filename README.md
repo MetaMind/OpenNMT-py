@@ -8,12 +8,12 @@ an open-source (MIT) neural machine translation system.
 
 # Requirements
 
-```bash
 =======
 ## Some useful tools:
 
 The example below uses the Moses tokenizer (http://www.statmt.org/moses/) to prepare the data and the Moses BLEU script for evaluation.
 
+```bash
 ```bash
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/lowercase.perl
