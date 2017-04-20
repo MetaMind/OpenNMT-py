@@ -91,15 +91,15 @@ The extra lower option in the line above will ensure that the vocabulary object 
 If you would like to use GloVe vectors for translation, now's the time:
 
 ```bash
-python get_emb_for_dict.py data/multi30k.tok.low.src.dict -no-chargrams
-python get_emb_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users -no-chargrams
+python get_embed_for_dict.py data/multi30k.tok.low.src.dict -no-chargrams
+python get_embed_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users -no-chargrams
 ```
 
 and if you would like to add character n-grams:
 
 ```bash
-python get_emb_for_dict.py data/multi30k.tok.low.src.dict
-python get_emb_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users 
+python get_embed_for_dict.py data/multi30k.tok.low.src.dict
+python get_embed_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users 
 ```
 
 
