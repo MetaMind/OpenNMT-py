@@ -91,20 +91,28 @@ The extra lower option in the line above will ensure that the vocabulary object 
 If you would like to use GloVe vectors for translation, now's the time:
 
 ```bash
-python get_glove_for_dict.py data/multi30k.tok.low.src.dict
-python get_glove_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users
+python get_emb_for_dict.py data/multi30k.tok.low.src.dict -no-chargrams
+python get_emb_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users -no-chargrams
 ```
+
+and if you would like to add character n-grams:
+
+```bash
+python get_emb_for_dict.py data/multi30k.tok.low.src.dict
+python get_emb_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users 
+```
+
 
 ### 2) Train the model.
 
 ```bash
-# Make sure to remove the pretrained word vector and detach argument if you decided not to use GloVe vectors above.
+# Make sure to remove arguments as you would like; these are the current setting that are being tested:
 
 # Moses
-python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 # -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove -detach_embed 100000000
+python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.800h.400d.2dp.brnn.2l.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2  -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove.chargram -detach_embed 100000000
 
 # CoreNLP
-python train.py -data data/multi30k.corenlp-tok.low.train.pt -save_model multi30k.corenlp-tok.low.600h.300d.0.2dp.brnn.2l.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/multi30k.corenlp-tok.low.src.dict.glove -detach_embed 100000000
+python train.py -data data/multi30k.corenlp-tok.low.train.pt -save_model multi30k.corenlp-tok.low.800h.400d.2dp.brnn.2l.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/multi30k.corenlp-tok.low.src.dict.glove.chargram -detach_embed 100000000
 ```
 
 ### 3) Translate sentences.
@@ -147,8 +155,8 @@ python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de
 python preprocess.py -train_src data/de-en/train.de-en.en.corenlp -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.corenlp -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.corenlp-tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
 
 #Glove Vectors
-python get_glove_for_dict.py data/iwslt16.tok.low.src.dict
-python get_glove_for_dict.py data/iwslt16.corenlp-tok.low.src.dict # for CoreNLP users
+python get_emb_for_dict.py data/iwslt16.tok.low.src.dict
+python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict # for CoreNLP users
 ```
 
 ### 2) Train the model.
@@ -186,7 +194,7 @@ python wmt_clean.pyt
 for l in en de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
 for l in en de; do for f in data/wmt17/test/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
 python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en	n.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
-python get_glove_for_dict.py data/news-commentary.tok.low.src.dict
+python get_emb_for_dict.py data/news-commentary.tok.low.src.dict
 ```
 ### 2) Train the model
 
