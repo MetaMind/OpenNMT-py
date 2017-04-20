@@ -11,6 +11,7 @@ class Encoder(nn.Module):
         self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
         self.count = 0
         self.layers = opt.layers
+        self.dropout = nn.Dropout(opt.dropout)
         self.num_directions = 2 if opt.brnn else 1
         assert opt.rnn_size % self.num_directions == 0
         self.hidden_size = opt.rnn_size // self.num_directions
@@ -37,6 +38,7 @@ class Encoder(nn.Module):
             emb = self.word_lut(input)
         if self.count < self.detach_embedding:
             emb = emb.detach()
+        emb = self.dropout(emb)
         if isinstance(input, tuple):
             emb = pack(emb, input[1])
         outputs, hidden_t = self.rnn(emb, hidden)
@@ -61,10 +63,9 @@ class StackedLSTM(nn.Module):
         h_0, c_0 = hidden
         h_1, c_1 = [], []
         for i, layer in enumerate(self.layers):
+            input = self.dropout(input)
             h_1_i, c_1_i = layer(input, (h_0[i], c_0[i]))
             input = h_1_i
-            if i + 1 != self.num_layers:
-                input = self.dropout(input)
             h_1 += [h_1_i]
             c_1 += [c_1_i]
 
@@ -80,6 +81,7 @@ class Decoder(nn.Module):
         self.layers = opt.layers
         self.input_feed = opt.input_feed
         input_size = opt.word_vec_size
+        self.dropout = nn.Dropout(opt.dropout)
         if self.input_feed:
             input_size += opt.rnn_size
 
@@ -107,10 +109,12 @@ class Decoder(nn.Module):
         outputs = []
         output = init_output
         for emb_t in emb.split(1):
+            emb_t = self.dropout(emb_t)
+            output = self.dropout(output)
             emb_t = emb_t.squeeze(0)
             if self.input_feed:
                 emb_t = torch.cat([emb_t, output], 1)
-
+            
             output, hidden = self.rnn(emb_t, hidden)
             output, attn = self.attn(output, context.t())
             output = self.dropout(output)

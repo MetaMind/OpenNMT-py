@@ -98,19 +98,22 @@ python get_glove_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNL
 ### 2) Train the model.
 
 ```bash
-# Make sure to remove the pretrained word vector argument if you decided not to use GloVe vectors above.
+# Make sure to remove the pretrained word vector and detach argument if you decided not to use GloVe vectors above.
+
 # Moses
-python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 # -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove
+python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 # -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove -detach_embed 100000000
+
 # CoreNLP
-python train.py -data data/multi30k.corenlp-tok.low.train.pt -save_model multi30k.corenlp-tok.low.600h.300d.0.2dp.brnn.2l.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/multi30k.corenlp-tok.low.src.dict.glove 
+python train.py -data data/multi30k.corenlp-tok.low.train.pt -save_model multi30k.corenlp-tok.low.600h.300d.0.2dp.brnn.2l.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/multi30k.corenlp-tok.low.src.dict.glove -detach_embed 100000000
 ```
 
 ### 3) Translate sentences.
 
-For Moses and CoreNLP Moses respectively:
+For Moses and CoreNLP+Moses respectively:
 
 ```bash
 python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.tok.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.tok.low.test.pred
+
 python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.corenlp.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.corenlp-tok.low.test.pred
 ```
 
@@ -133,15 +136,27 @@ wget https://wit3.fbk.eu/archive/2016-01//texts/de/en/de-en.tgz && tar -xf de-en
 ### 1) Preprocess the data.
 
 ```bash
-python iwslt_xml2txt.py data/de-en -a
 python iwslt_xml2txt.py data/de-en
+python iwslt_xml2txt.py data/de-en -a
+python iwslt_xml2txt.py data/de-en -corenlp
+
+#Moses
 python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.tok -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
+
+#CoreNLP
+python preprocess.py -train_src data/de-en/train.de-en.en.corenlp -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.corenlp -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.corenlp-tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
+
+#Glove Vectors
+python get_glove_for_dict.py data/iwslt16.tok.low.src.dict
+python get_glove_for_dict.py data/iwslt16.corenlp-tok.low.src.dict # for CoreNLP users
 ```
 
 ### 2) Train the model.
 
 ```bash
-python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 
+
+python train.py -data data/iwslt16.corenlp-tok.low.train.pt  -save_model iwslt16.corenlp-tok.low.300wv.4l.600h.brnn.2dp.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -layers 4-detach_embed 100000000 -pre_word_vecs_enc data/iwslt16.corenlp-tok.low.src.dict.glove -batch_size 256
 ```
 
 ### 3) Translate sentences.

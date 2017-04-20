@@ -9,15 +9,23 @@ parser.add_argument('path')
 parser.add_argument('-t', '--tags', nargs='+', default=['seg']) 
 parser.add_argument('-th', '--threads', default=8, type=int)
 parser.add_argument('-a', '--aggressive', action='store_true')
+parser.add_argument('-corenlp', action='store_true')
 args = parser.parse_args()
 
 def tokenize(f_txt):
-    f_tok = f_txt
-    f_tok += '.atok' if args.aggressive else '.tok'
     lang = os.path.splitext(f_txt)[1][1:]
+    f_tok = f_txt
+    if args.aggressive:
+        f_tok += '.atok'
+    elif args.corenlp and lang == 'en':
+        f_tok += '.corenlp'
+    else:
+        f_tok += '.tok'
     with open(f_tok, 'w') as fout, open(f_txt) as fin:
         if args.aggressive:
             pipe = subprocess.call(['perl', 'tokenizer.perl', '-a', '-q', '-threads', str(args.threads), '-no-escape', '-l', lang], stdin=fin, stdout=fout)
+        elif args.corenlp and lang=='en':
+            pipe = subprocess.call(['python', 'corenlp_tokenize.py', '-input-fn', f_txt, '-output-fn', f_tok])
         else:
             pipe = subprocess.call(['perl', 'tokenizer.perl', '-q', '-threads', str(args.threads), '-no-escape', '-l', lang], stdin=fin, stdout=fout)
 

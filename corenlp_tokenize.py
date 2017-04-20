@@ -1,4 +1,5 @@
 import os, sys
+import time
 sys.path.append(os.getcwd())
 
 from stanza.nlp.corenlp import CoreNLPClient
@@ -49,14 +50,17 @@ opt = parser.parse_args()
 corenlp = CoreNLPClient(default_annotators=['tokenize', 'ssplit'])
 
 def annotate_sentence(corenlp, gloss):
-    parse = corenlp.annotate(gloss)
-    token_str = ' '.join([token['word'] for token in parse.json['sentence'][0]['token']])
+    try:
+        parse = corenlp.annotate(gloss)
+    except:
+        time.sleep(10)
+        parse = corenlp.annotate(gloss)
+    token_str = ' '.join([token['word'] for sentence in parse.json['sentence'] for token in sentence['token'] ])
     #return parse.json['sentence'][0]['token']
     return token_str
 
 with open(opt.input_fn, 'r') as f:
     with open(opt.output_fn, 'w') as f2:
         for sent in f.readlines():
-            #json.dump(annotate_sentence(corenlp, sent), f2)
             f2.write(annotate_sentence(corenlp, sent))
             f2.write('\n')
