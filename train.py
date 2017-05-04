@@ -1,5 +1,6 @@
 from __future__ import division
 
+from unity.models.caiming import Model as Encoder
 import onmt
 import argparse
 import torch
@@ -68,7 +69,7 @@ parser.add_argument('-optim', default='sgd',
 parser.add_argument('-max_grad_norm', type=float, default=5,
                     help="""If the norm of the gradient vector exceeds this,
                     renormalize it to have the norm equal to max_grad_norm""")
-parser.add_argument('-dropout', type=float, default=0.3,
+parser.add_argument('-dropout', type=float, default=0.2,
                     help='Dropout probability; applied between LSTM stacks.')
 parser.add_argument('-curriculum', action="store_true",
                     help="""For this many epochs, order the minibatches based
@@ -290,11 +291,11 @@ def main():
 
     print('Building model...')
 
-    encoder = onmt.Models.Encoder(opt, dicts['src'])
+    encoder = Encoder(opt, dicts['src'])
     decoder = onmt.Models.Decoder(opt, dicts['tgt'])
 
     generator = nn.Sequential(
-        nn.Linear(opt.rnn_size, dicts['tgt'].size()),
+        nn.Linear(4*opt.rnn_size, dicts['tgt'].size()),
         nn.LogSoftmax())
 
     model = onmt.Models.NMTModel(encoder, decoder)
