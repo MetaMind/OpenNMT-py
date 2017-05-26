@@ -8,6 +8,7 @@ from torch.nn.utils.rnn import pack_padded_sequence as pack
 class Encoder(nn.Module):
 
     def __init__(self, opt, dicts):
+        super(Encoder, self).__init__()
         self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
         self.count = 0
         self.layers = opt.layers
@@ -17,7 +18,6 @@ class Encoder(nn.Module):
         self.hidden_size = opt.rnn_size // self.num_directions
         input_size = opt.word_vec_size
 
-        super(Encoder, self).__init__()
         self.word_lut = nn.Embedding(dicts.size(),
                                   opt.word_vec_size,
                                   padding_idx=onmt.Constants.PAD)
@@ -78,6 +78,7 @@ class StackedLSTM(nn.Module):
 class Decoder(nn.Module):
 
     def __init__(self, opt, dicts):
+        super(Decoder, self).__init__()
         self.layers = opt.layers
         self.input_feed = opt.input_feed
         input_size = opt.word_vec_size
@@ -85,7 +86,6 @@ class Decoder(nn.Module):
         if self.input_feed:
             input_size += opt.rnn_size
 
-        super(Decoder, self).__init__()
         self.word_lut = nn.Embedding(dicts.size(),
                                   opt.word_vec_size,
                                   padding_idx=onmt.Constants.PAD)

@@ -154,9 +154,14 @@ python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de
 #CoreNLP
 python preprocess.py -train_src data/de-en/train.de-en.en.corenlp -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.corenlp -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.corenlp-tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
 
-#Glove Vectors
+#Glove Vectors + CharNgrams
 python get_emb_for_dict.py data/iwslt16.tok.low.src.dict
 python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict # for CoreNLP users
+
+#Glove Vectors
+python get_emb_for_dict.py data/iwslt16.tok.low.src.dict -no-chargram
+python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict -no-chargram # for CoreNLP users
+
 ```
 
 ### 2) Train the model.
@@ -179,21 +184,55 @@ python translate.py -gpu 0 -model model_name -src data/de-en/IWSLT16.TED.tst2014
 perl multi-bleu.perl data/de-en/IWSLT16.TED.tst2014.de-en.de.tok < iwslt.ted.tst2014.de-en.tok.low.pred
 ```
 
-##WMt'17 (de-en)
+## WMt'17 (de-en)
 
 ### 0) Download the data.
 
 ```bash
 mkdir -p data/wmt17
+cd data/wmt17
+wget http://www.statmt.org/wmt13/training-parallel-europarl-v7.tgz
+wget http://www.statmt.org/wmt13/training-parallel-commoncrawl.tgz
+wget http://data.statmt.org/wmt17/translation-task/training-parallel-nc-v12.tgz
+wget http://data.statmt.org/wmt17/translation-task/rapid2016.tgz
+wget http://data.statmt.org/wmt17/translation-task/dev.tgz
+tar -xzf training-parallel-europarl-v7.tgz
+tar -xzf training-parallel-commoncrawl.tgz
+tar -xzf training-parallel-nc-v12.tgz
+tar -xzf rapid2016.tgz
+tar -xzf dev.tgz
+mkdir de-en
+mv *de-en* de-en
+mv training/*de-en* de-en
+mv dev/*deen* de-en
+mv dev/*ende* de-en
+mv dev/*.de de-en
+mv dev/*.en de-en
+mv dev/newstest2009*.en*
+mv dev/news-test2008*.en*
+
+python wmt_clean.pyt
+for s in newstest2013.en commoncrawl.de-en.clean.en europarl-v7.de-en.clean.en news-commentary-v12.de-en.clean.en rapid2016.de-en.clean.en; do python corenlp_tokenize.py -input-fn data/wmt17/de-en/$s -output-fn data/wmt17/de-en/$s.corenlp; done
+for l in de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
+for l in en de; do for f in data/wmt17/*.clean.$l; do perl lowercase.perl < $f > $f.low; done
+perl tokenizer.perl -no-escape -l de -q  < newstest2013.de > newstest2013.de.tok
+perl lowercase.perl  < newstest2013.de.tok > newstest2013.de.tok.low
+cat commoncraw*clean.en.corenlp.low europarl*.clean.en.corenlp.low news-commentary*.clean.en.corenlp.low rapid*.clean.en.corenlp.low > train.en.corenlp.low
+cat commoncraw*clean.de.tok.low europarl*.clean.de.tok.low news-commentary*.clean.de.tok.low rapid*.clean.de.tok.low > train.de.tok.low
+
+python preprocess.py -train_src data/wmt17/train.clean.en.corenlp.low -train_tgt data/wmt17/train.de.tok.low -valid_src data/wmt17/newstest2013.en.corenlp.low -valid_tgt data/wmt17/newstest2013.de.tok.low -save_data data/wmt17.corenlp-tok.low -lower
+
+python get_emb_for_dict.py data/wmt17.corenlp-tok.low.src.dict
+
+python train.py -data data/wmt17.corenlp-tok.low.train.pt  -save_model wmt17.corenlp-tok.low.400wv.2l.800h.brnn.2dp.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 30 -max_generator_batches 100 -dropout 0.2 -layers 2 -detach_embed 1000000000000 -pre_word_vecs_enc data/wmt17.corenlp-tok.low.src.dict.glove -batch_size 256
 ```
 
-### 1) Preporcess the data.
+### 1) Preprocess the data.
 
 ```bash
-python wmt_clean.pyt
 for l in en de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
 for l in en de; do for f in data/wmt17/test/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
-python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en	n.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
+python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
 python get_emb_for_dict.py data/news-commentary.tok.low.src.dict
 ```
 ### 2) Train the model
