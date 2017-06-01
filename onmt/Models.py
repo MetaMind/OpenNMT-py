@@ -9,6 +9,7 @@ class Encoder(nn.Module):
 
     def __init__(self, opt, dicts):
         super(Encoder, self).__init__()
+        self.opt = opt
         self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
         self.count = 0
         self.layers = opt.layers
@@ -45,6 +46,7 @@ class Encoder(nn.Module):
         if isinstance(input, tuple):
             outputs = unpack(outputs)[0]
         self.count += 1
+        outputs = self.dropout(outputs) if self.opt.drop_encoder else outputs
         return hidden_t, outputs
 
 
@@ -126,7 +128,8 @@ class Decoder(nn.Module):
 
 class NMTModel(nn.Module):
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, args, encoder, decoder):
+        self.args = args
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
@@ -150,11 +153,19 @@ class NMTModel(nn.Module):
         src = input[0]
         tgt = input[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
+        
+        slowness_loss = 0
         init_output = self.make_init_decoder_output(context)
+
+        if self.args.slow_encoder:
+            slowness_loss += (context[1:] - context[:-1]).pow(2).mean()
 
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
 
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
 
-        return out
+        if self.args.slow_decoder:
+            slowness_loss += (out[1:] - out[:-1]).pow(2).mean()
+
+        return out, slowness_loss

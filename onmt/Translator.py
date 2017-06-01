@@ -17,7 +17,7 @@ class Translator(object):
 
         encoder = onmt.Models.Encoder(model_opt, self.src_dict)
         decoder = onmt.Models.Decoder(model_opt, self.tgt_dict)
-        model = onmt.Models.NMTModel(encoder, decoder)
+        model = onmt.Models.NMTModel(self.opt, encoder, decoder)
 
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, self.tgt_dict.size()),

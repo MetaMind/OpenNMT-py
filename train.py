@@ -1,5 +1,6 @@
 from __future__ import division
 
+
 import onmt
 import argparse
 import torch
@@ -8,6 +9,7 @@ from torch import cuda
 from torch.autograd import Variable
 import math
 import time
+import torch.autograd as autograd
 
 parser = argparse.ArgumentParser(description='train.py')
 
@@ -47,6 +49,12 @@ parser.add_argument('-dot', action='store_true',
 parser.add_argument('-brnn_merge', default='concat',
                     help="""Merge action for the bidirectional hidden states:
                     [concat|sum]""")
+
+#SLOWNESS
+parser.add_argument('-slow_encoder',   action="store_true")
+parser.add_argument('-slow_decoder',   action="store_true")
+parser.add_argument('-drop_encoder',   action="store_true")
+parser.add_argument('-slowness_reg', default=5, type=float)
 
 ## Optimization options
 
@@ -161,7 +169,7 @@ def eval(model, criterion, data):
     model.eval()
     for i in range(len(data)):
         batch = data[i][:-1] # exclude original indices
-        outputs = model(batch)
+        outputs, _ = model(batch)
         targets = batch[1][1:]  # exclude <s> from targets
         loss, _, num_correct = memoryEfficientLoss(
                 outputs, targets, model.generator, criterion, eval=True)
@@ -198,12 +206,18 @@ def trainModel(model, trainData, validData, dataset, optim):
             batch = trainData[batchIdx][:-1] # exclude original indices
 
             model.zero_grad()
-            outputs = model(batch)
+            outputs, slowness = model(batch)
             targets = batch[1][1:]  # exclude <s> from targets
             loss, gradOutput, num_correct = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
 
-            outputs.backward(gradOutput)
+            if model.args.slowness_reg:
+                outputs.backward(gradOutput, retain_variables=True)
+                (slowness*model.args.slowness_reg).backward(torch.Tensor([1]).cuda())
+#                autograd.backward([outputs, slowness*model.args.slowness_reg], grad_variables=[gradOutput, torch.Tensor([1]).cuda()])
+#                autograd.backward([slowness*model.args.slowness_reg], grad_variables=[torch.Tensor([1]).cuda()])
+            else:
+                outputs.backward(gradOutput)
 
             # update the parameters
             optim.step()
@@ -297,7 +311,7 @@ def main():
         nn.Linear(opt.rnn_size, dicts['tgt'].size()),
         nn.LogSoftmax())
 
-    model = onmt.Models.NMTModel(encoder, decoder)
+    model = onmt.Models.NMTModel(opt, encoder, decoder)
 
     if opt.train_from:
         print('Loading model from checkpoint at %s' % opt.train_from)
