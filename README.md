@@ -22,21 +22,6 @@ wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/sha
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
 wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
 ```
-
-Stanford CoreNLP can also be used to tokenize on the source side, but we do not have a detokenizer for generated sequences based on CoreNLP tokenization. If you would like to setup CoreNLP for English, open up a new tmux session (tmux new -s corenlp) and run the following:
-
-```bash
-mkdir corenlp
-cd corenlp
-wget http://nlp.stanford.edu/software/stanford-corenlp-full-2016-10-31.zip
-unzip stanford-corenlp-full-2016-10-31.zip
-cd stanford-corenlp-full-2016-10-31
-java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -port 9000 -timeout 15000
-# exit your tmux session
-```
-
-see https://stanfordnlp.github.io/CoreNLP/corenlp-server.html for more information.
-
 ## WMT'16 Multimodal Translation: Multi30k (de-en)
 
 An example of training for the WMT'16 Multimodal Translation task (http://www.statmt.org/wmt16/multimodal-task.html).
@@ -61,17 +46,10 @@ Moses tokenization without html escaping (add the -a option after -no-escape for
 for l in en de; do for f in data/multi30k/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
 ```
 
-or alternatively, you can use CoreNLP tokenization. If detokenization of generated sequences is important, then make sure to use Moses on the target side. We currently do not have a way to reliably detokenize for generated sequences.
-
-```bash
-for s in train val test; do python corenlp_tokenize.py -input-fn data/multi30k/$s.en -output-fn data/multi30k/$s.en.corenlp; done
-```
-
 Typically, we lowercase this dataset, as the important comparisons are in uncased BLEU:
 
 ```bash
 for f in data/multi30k/*.tok; do perl lowercase.perl < $f > $f.low; done # if you ran Moses
-for f in data/multi30k/*.corenlp; do perl lowercase.perl < $f > $f.low; done # if you ran corenlp
 ```
 
 If you would like to use the Moses tokenization for source and target, prepare the data for the model as so:
@@ -80,10 +58,7 @@ If you would like to use the Moses tokenization for source and target, prepare t
 python preprocess.py -train_src data/multi30k/train.en.tok.low -train_tgt data/multi30k/train.de.tok.low -valid_src data/multi30k/val.en.tok.low -valid_tgt data/multi30k/val.de.tok.low -save_data data/multi30k.tok.low -lower
 ```
 
-If you would like to use the CoreNLP tokenization for English and Moses for German:
-
 ```bash
-python preprocess.py -train_src data/multi30k/train.en.corenlp.low -train_tgt data/multi30k/train.de.tok.low -valid_src data/multi30k/val.en.corenlp.low -valid_tgt data/multi30k/val.de.tok.low -save_data data/multi30k.corenlp-tok.low -lower
 ```
 
 The extra lower option in the line above will ensure that the vocabulary object converts all words to lowercase before lookup.
@@ -92,14 +67,12 @@ If you would like to use GloVe vectors for translation, now's the time:
 
 ```bash
 python get_embed_for_dict.py data/multi30k.tok.low.src.dict -no-chargram
-python get_embed_for_dict.py data/multi30k.corenlp-tok.low.src.dict -no-chargram # for CoreNLP users 
 ```
 
 and if you would like to add character n-grams:
 
 ```bash
 python get_embed_for_dict.py data/multi30k.tok.low.src.dict
-python get_embed_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNLP users 
 ```
 
 
@@ -111,25 +84,20 @@ python get_embed_for_dict.py data/multi30k.corenlp-tok.low.src.dict # for CoreNL
 # Moses
 python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.800h.400d.2dp.brnn.2l.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2  -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove.chargram -detach_embed 100000000
 
-# CoreNLP
-python train.py -data data/multi30k.corenlp-tok.low.train.pt -save_model multi30k.corenlp-tok.low.800h.400d.2dp.brnn.2l.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/multi30k.corenlp-tok.low.src.dict.glove.chargram -detach_embed 100000000
 ```
 
 ### 3) Translate sentences.
 
-For Moses and CoreNLP+Moses respectively:
 
 ```bash
 python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.tok.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.tok.low.test.pred
 
-python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.corenlp.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.corenlp-tok.low.test.pred
 ```
 
 ### 4) Evaluate.
 
 ```bash
 perl multi-bleu.perl data/multi30k/test.de.tok.low < multi30k.tok.low.test.pred
-perl multi-bleu.perl data/multi30k/test.de.corenlp-tok.low < multi30k.corenlp-tok.low.test.pred
 ```
 
 ## IWSLT'16 (de-en)
@@ -146,21 +114,15 @@ wget https://wit3.fbk.eu/archive/2016-01//texts/de/en/de-en.tgz && tar -xf de-en
 ```bash
 python iwslt_xml2txt.py data/de-en
 python iwslt_xml2txt.py data/de-en -a
-python iwslt_xml2txt.py data/de-en -corenlp
 
 #Moses
 python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.tok -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
 
-#CoreNLP
-python preprocess.py -train_src data/de-en/train.de-en.en.corenlp -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.corenlp -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.corenlp-tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
-
 #Glove Vectors + CharNgrams
 python get_emb_for_dict.py data/iwslt16.tok.low.src.dict
-python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict # for CoreNLP users
 
 #Glove Vectors
 python get_emb_for_dict.py data/iwslt16.tok.low.src.dict -no-chargram
-python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict -no-chargram # for CoreNLP users
 
 ```
 
@@ -169,7 +131,6 @@ python get_emb_for_dict.py data/iwslt16.corenlp-tok.low.src.dict -no-chargram # 
 ```bash
 python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 
 
-python train.py -data data/iwslt16.corenlp-tok.low.train.pt  -save_model iwslt16.corenlp-tok.low.300wv.4l.600h.brnn.2dp.glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2 -layers 4-detach_embed 100000000 -pre_word_vecs_enc data/iwslt16.corenlp-tok.low.src.dict.glove -batch_size 256
 ```
 
 ### 3) Translate sentences.
@@ -212,19 +173,11 @@ mv dev/newstest2009*.en*
 mv dev/news-test2008*.en*
 
 python wmt_clean.pyt
-for s in newstest2013.en commoncrawl.de-en.clean.en europarl-v7.de-en.clean.en news-commentary-v12.de-en.clean.en rapid2016.de-en.clean.en; do python corenlp_tokenize.py -input-fn data/wmt17/de-en/$s -output-fn data/wmt17/de-en/$s.corenlp; done
 for l in de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
 for l in en de; do for f in data/wmt17/*.clean.$l; do perl lowercase.perl < $f > $f.low; done
 perl tokenizer.perl -no-escape -l de -q  < newstest2013.de > newstest2013.de.tok
 perl lowercase.perl  < newstest2013.de.tok > newstest2013.de.tok.low
-cat commoncraw*clean.en.corenlp.low europarl*.clean.en.corenlp.low news-commentary*.clean.en.corenlp.low rapid*.clean.en.corenlp.low > train.en.corenlp.low
 cat commoncraw*clean.de.tok.low europarl*.clean.de.tok.low news-commentary*.clean.de.tok.low rapid*.clean.de.tok.low > train.de.tok.low
-
-python preprocess.py -train_src data/wmt17/train.clean.en.corenlp.low -train_tgt data/wmt17/train.de.tok.low -valid_src data/wmt17/newstest2013.en.corenlp.low -valid_tgt data/wmt17/newstest2013.de.tok.low -save_data data/wmt17.corenlp-tok.low -lower
-
-python get_emb_for_dict.py data/wmt17.corenlp-tok.low.src.dict
-
-python train.py -data data/wmt17.corenlp-tok.low.train.pt  -save_model wmt17.corenlp-tok.low.400wv.2l.800h.brnn.2dp.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 30 -max_generator_batches 100 -dropout 0.2 -layers 2 -detach_embed 1000000000000 -pre_word_vecs_enc data/wmt17.corenlp-tok.low.src.dict.glove -batch_size 256
 ```
 
 ### 1) Preprocess the data.
@@ -232,6 +185,7 @@ python train.py -data data/wmt17.corenlp-tok.low.train.pt  -save_model wmt17.cor
 ```bash
 for l in en de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
 for l in en de; do for f in data/wmt17/test/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
+
 python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
 python get_emb_for_dict.py data/news-commentary.tok.low.src.dict
 ```
