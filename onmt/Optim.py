@@ -18,7 +18,8 @@ class Optim(object):
         else:
             raise RuntimeError("Invalid optim method: " + self.method)
 
-    def __init__(self, method, lr, max_grad_norm, lr_decay=1, start_decay_at=None):
+    def __init__(self, opt, method, lr, max_grad_norm, lr_decay=1, start_decay_at=None):
+        self.opt = opt
         self.last_ppl = None
         self.lr = lr
         self.max_grad_norm = max_grad_norm
@@ -37,7 +38,7 @@ class Optim(object):
     def updateLearningRate(self, ppl, epoch):
         if self.start_decay_at is not None and epoch >= self.start_decay_at:
             self.start_decay = True
-        if self.last_ppl is not None and ppl > self.last_ppl:
+        if self.opt.ppl_decay and self.last_ppl is not None and ppl > self.last_ppl:
             self.start_decay = True
 
         if self.start_decay:

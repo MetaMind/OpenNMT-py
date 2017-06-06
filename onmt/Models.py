@@ -12,8 +12,8 @@ class Encoder(nn.Module):
         self.opt = opt
         self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
         self.count = 0
-        self.layers = opt.layers
         self.dropout = nn.Dropout(opt.dropout)
+        self.layers = opt.layers
         self.num_directions = 2 if opt.brnn else 1
         assert opt.rnn_size % self.num_directions == 0
         self.hidden_size = opt.rnn_size // self.num_directions
@@ -46,7 +46,6 @@ class Encoder(nn.Module):
         if isinstance(input, tuple):
             outputs = unpack(outputs)[0]
         self.count += 1
-        outputs = self.dropout(outputs) if self.opt.drop_encoder else outputs
         return hidden_t, outputs
 
 
@@ -119,7 +118,7 @@ class Decoder(nn.Module):
             
             output, hidden = self.rnn(emb_t, hidden)
             output, attn = self.attn(output, context.t())
-            output = self.dropout(output)
+            output = output
             outputs += [output]
 
         outputs = torch.stack(outputs)
@@ -133,6 +132,7 @@ class NMTModel(nn.Module):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.dropout = nn.Dropout(self.args.dropout)
 
     def make_init_decoder_output(self, context):
         batch_size = context.size(1)
@@ -154,18 +154,32 @@ class NMTModel(nn.Module):
         tgt = input[1][:-1]  # exclude last target from inputs
         enc_hidden, context = self.encoder(src)
         
-        slowness_loss = 0
         init_output = self.make_init_decoder_output(context)
-
-        if self.args.slow_encoder:
-            slowness_loss += (context[1:] - context[:-1]).pow(2).mean()
 
         enc_hidden = (self._fix_enc_hidden(enc_hidden[0]),
                       self._fix_enc_hidden(enc_hidden[1]))
 
+        reg_loss = 0
+        reg_loss += self.args.tar * (context[1:] - context[:-1]).pow(2).mean()
+
+        if not self.args.ar_dropout:
+            reg_loss += self.args.ar * context.pow(2).mean()
+
+        context = self.dropout(context)
+
+        if self.args.ar_dropout:
+            reg_loss += self.args.ar * context.pow(2).mean()
+
         out, dec_hidden, _attn = self.decoder(tgt, enc_hidden, context, init_output)
 
-        if self.args.slow_decoder:
-            slowness_loss += (out[1:] - out[:-1]).pow(2).mean()
+        reg_loss += self.args.tar * (out[1:] - out[:-1]).pow(2).mean()
 
-        return out, slowness_loss
+        if not self.args.ar_dropout:
+            reg_loss += self.args.ar * out.pow(2).mean()
+
+        out = self.dropout(out)
+
+        if self.args.ar_dropout:
+            reg_loss += self.args.ar * out.pow(2).mean()
+
+        return out, reg_loss

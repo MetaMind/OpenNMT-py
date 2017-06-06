@@ -51,10 +51,11 @@ parser.add_argument('-brnn_merge', default='concat',
                     [concat|sum]""")
 
 #SLOWNESS
-parser.add_argument('-slow_encoder',   action="store_true")
-parser.add_argument('-slow_decoder',   action="store_true")
-parser.add_argument('-drop_encoder',   action="store_true")
-parser.add_argument('-slowness_reg', default=5, type=float)
+parser.add_argument('-ar', default=0, type=float)
+parser.add_argument('-tar', default=0, type=float)
+parser.add_argument('-lazy_decay', action='store_true')
+parser.add_argument('-ar_dropout', action='store_true')
+parser.add_argument('-ppl_decay', action='store_true')
 
 ## Optimization options
 
@@ -206,14 +207,14 @@ def trainModel(model, trainData, validData, dataset, optim):
             batch = trainData[batchIdx][:-1] # exclude original indices
 
             model.zero_grad()
-            outputs, slowness = model(batch)
+            outputs, reg = model(batch)
             targets = batch[1][1:]  # exclude <s> from targets
             loss, gradOutput, num_correct = memoryEfficientLoss(
                     outputs, targets, model.generator, criterion)
 
-            if model.args.slowness_reg:
+            if model.args.ar or model.args.tar:
                 outputs.backward(gradOutput, retain_variables=True)
-                (slowness*model.args.slowness_reg).backward(torch.Tensor([1]).cuda())
+                reg.backward(torch.Tensor([1]).cuda())
 #                autograd.backward([outputs, slowness*model.args.slowness_reg], grad_variables=[gradOutput, torch.Tensor([1]).cuda()])
 #                autograd.backward([slowness*model.args.slowness_reg], grad_variables=[torch.Tensor([1]).cuda()])
             else:
@@ -348,7 +349,7 @@ def main():
         encoder.load_pretrained_vectors(opt)
         decoder.load_pretrained_vectors(opt)
 
-        optim = onmt.Optim(
+        optim = onmt.Optim(opt,
             opt.optim, opt.learning_rate, opt.max_grad_norm,
             lr_decay=opt.learning_rate_decay,
             start_decay_at=opt.start_decay_at
