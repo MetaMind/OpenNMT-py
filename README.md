@@ -63,31 +63,22 @@ python preprocess.py -train_src data/multi30k/train.en.tok.low -train_tgt data/m
 
 The extra lower option in the line above will ensure that the vocabulary object converts all words to lowercase before lookup.
 
-If you would like to use GloVe vectors for translation, now's the time:
+If you would like to use GloVe vectors and character embeddings, now's the time:
 
 ```bash
-python get_embed_for_dict.py data/multi30k.tok.low.src.dict -no-chargram
+python get_embed_for_dict.py data/multi30k.tok.low.src.dict -glove -chargram -d_hid 400
+python get_embed_for_dict.py data/multi30k.tok.low.src.dict -glove -d_hid 300
 ```
-
-and if you would like to add character n-grams:
-
-```bash
-python get_embed_for_dict.py data/multi30k.tok.low.src.dict
-```
-
 
 ### 2) Train the model.
 
 ```bash
-# Make sure to remove arguments as you would like; these are the current setting that are being tested:
+python train.py -data data/multi30k.tok.low.train.pt -save_model snapshots/multi30k.tok.low.600h.400d.2dp.brnn.2l.fixed_glove_char.model -brnn -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove.chargram -fix_embed
 
-# Moses
-python train.py -data data/multi30k.tok.low.train.pt -save_model multi30k.tok.low.800h.400d.2dp.brnn.2l.glove.chargram.model -gpus 0 -brnn -rnn_size 800 -word_vec_size 400 -start_decay_at 50 -epoch 20 -max_generator_batches 100 -dropout 0.2  -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove.chargram -detach_embed 100000000
-
+python train.py -data data/multi30k.tok.low.train.pt -save_model snapshots/multi30k.tok.low.600h.300d.2dp.brnn.2l.fixed_glove.model -brnn -rnn_size 600 -word_vec_size 300 -pre_word_vecs_enc data/multi30k.tok.low.src.dict.glove -fix_embed
 ```
 
 ### 3) Translate sentences.
-
 
 ```bash
 python translate.py -gpu 0 -model model_name -src data/multi30k/test.en.tok.low -tgt data/multi30k/test.de.tok.low -replace_unk -verbose -output multi30k.tok.low.test.pred
@@ -115,21 +106,19 @@ wget https://wit3.fbk.eu/archive/2016-01//texts/de/en/de-en.tgz && tar -xf de-en
 python iwslt_xml2txt.py data/de-en
 python iwslt_xml2txt.py data/de-en -a
 
-#Moses
 python preprocess.py -train_src data/de-en/train.de-en.en.tok -train_tgt data/de-en/train.de-en.de.tok -valid_src data/de-en/IWSLT16.TED.tst2013.de-en.en.tok -valid_tgt data/de-en/IWSLT16.TED.tst2013.de-en.de.tok -save_data data/iwslt16.tok.low -lower -src_vocab_size 22822 -tgt_vocab_size 32009
 
 #Glove Vectors + CharNgrams
-python get_emb_for_dict.py data/iwslt16.tok.low.src.dict
-
-#Glove Vectors
-python get_emb_for_dict.py data/iwslt16.tok.low.src.dict -no-chargram
-
+python get_embed_for_dict.py data/iwslt16.tok.low.src.dict -glove -chargrams
+python get_embed_for_dict.py data/iwslt16.tok.low.src.dict -glove
 ```
 
 ### 2) Train the model.
 
 ```bash
-python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.600h.400d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove.chargram > iwslt16.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove > iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove.log
 
 ```
 
@@ -172,27 +161,74 @@ mv dev/*.en de-en
 mv dev/newstest2009*.en*
 mv dev/news-test2008*.en*
 
-python wmt_clean.pyt
-for l in de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
-for l in en de; do for f in data/wmt17/*.clean.$l; do perl lowercase.perl < $f > $f.low; done
-perl tokenizer.perl -no-escape -l de -q  < newstest2013.de > newstest2013.de.tok
-perl lowercase.perl  < newstest2013.de.tok > newstest2013.de.tok.low
-cat commoncraw*clean.de.tok.low europarl*.clean.de.tok.low news-commentary*.clean.de.tok.low rapid*.clean.de.tok.low > train.de.tok.low
+python ../../wmt_clean.py de-en
+for l in de; do for f in de-en/*.clean.$l; do perl ../../tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
+for l in en; do for f in de-en/*.clean.$l; do perl ../../tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; done; done
+for l in en de; do for f in de-en/*.clean.$l.tok; do perl ../../lowercase.perl < $f > $f.low; done; done
+for l in en de; do perl ../../tokenizer.perl -no-escape -l $l -q  < de-en/newstest2013.$l > de-en/newstest2013.$l.tok; done
+for l in en de; do perl ../../lowercase.perl  < de-en/newstest2013.$l.tok > de-en/newstest2013.$l.tok.low; done
+for l in en de; do cat de-en/commoncraw*clean.$l.tok.low de-en/europarl*.clean.$l.tok.low de-en/news-commentary*.clean.$l.tok.low de-en/rapid*.clean.$l.tok.low > de-en/train.clean.$l.tok.low; done
 ```
 
 ### 1) Preprocess the data.
 
 ```bash
-for l in en de; do for f in data/wmt17/*.clean.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
-for l in en de; do for f in data/wmt17/test/*.$l; do perl tokenizer.perl -no-escape -l $l -q  < $f > $f.tok; perl lowercase.perl < $f.tok > $f.tok.low; done; done
+# News Commentary
+python preprocess.py -train_src data/wmt17/de-en/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/de-en/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/news-commentary.clean.tok.low -lower -seq_length 75
+python get_embed_for_dict.py data/news-commentary.clean.tok.low.src.dict -glove -d_hid 300
+python get_embed_for_dict.py data/news-commentary.clean.tok.low.src.dict -glove -chargrams -d_hid 400
 
-python preprocess.py -train_src data/wmt17/news-commentary-v12.de-en.clean.en.tok.low -train_tgt data/wmt17/news-commentary-v12.de-en.clean.de.tok.low -valid_src data/wmt17/test/newstest2013.en.tok.low -valid_tgt data/wmt17/test/newstest2013.de.tok.low -save_data data/news-commentary.tok.low -lower -seq_length 75
-python get_emb_for_dict.py data/news-commentary.tok.low.src.dict
+# Rapid Fire
+python preprocess.py -train_src data/wmt17/de-en/rapid*.clean.en.tok.low -train_tgt data/wmt17/de-en/rapid*.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/rapid.clean.tok.low -lower -seq_length 75
+python get_embed_for_dict.py data/rapid.clean.tok.low.src.dict -glove -d_hid 300
+python get_embed_for_dict.py data/rapid.clean.tok.low.src.dict -glove -chargrams -d_hid 400
+
+# Europarl
+python preprocess.py -train_src data/wmt17/de-en/europarl*.clean.en.tok.low -train_tgt data/wmt17/de-en/europarl*.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/europarl.clean.tok.low -lower -seq_length 75
+python get_embed_for_dict.py data/europarl.clean.tok.low.src.dict -glove -d_hid 300
+python get_embed_for_dict.py data/europarl.clean.tok.low.src.dict -glove -chargrams -d_hid 400
+
+# Common Crawl
+python preprocess.py -train_src data/wmt17/de-en/commoncrawl*.clean.en.tok.low -train_tgt data/wmt17/de-en/commoncrawl*.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/commoncrawl.clean.tok.low -lower -seq_length 75
+python get_embed_for_dict.py data/commoncrawl.clean.tok.low.src.dict -glove -d_hid 300
+python get_embed_for_dict.py data/commoncrawl.clean.tok.low.src.dict -glove -chargrams -d_hid 400
+
+# WMT'17
+python preprocess.py -train_src data/wmt17/de-en/train.clean.en.tok.low -train_tgt data/wmt17/de-en/train.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/wmt17.clean.tok.low -lower -seq_length 75
+python get_embed_for_dict.py data/wmt17.clean.tok.low.src.dict -glove -d_hid 300
+python get_embed_for_dict.py data/wmt17.clean.tok.low.src.dict -glove -chargrams -d_hid 400
+
 ```
 ### 2) Train the model
 
 ```bash
-python train.py -data data/news-commentary.tok.low.train.pt  -save_model news-commentary.tok.low.fixed_glove.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300  -start_decay_at 50 -epoch 50 -max_generator_batches 100 -dropout 0.2 -pre_word_vecs_enc data/news-commentary.tok.low.src.dict.glove -detach_embed 100000000000 
+# Train fixed glove+char models
+for corpus in wmt17
+do
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+done
+
+# Train fixed glove models
+for corpus in wmt17
+do
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
+done
+
+# Train fixed glove+char models
+for corpus in news-commentary rapid europarl commoncrawl
+do
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+done
+
+# Train fixed glove models
+for corpus in news-commentary rapid europarl commoncrawl
+do
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
+done
+
+
+
+
 ```
 
 ### 3) Translate sentences.

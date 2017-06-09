@@ -1,13 +1,17 @@
 from collections import Counter
 import pycld2
 import unicodeblock.blocks
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('prefix', default='data/wmt17/de-en/')
+args = parser.parse_args()
 
 langs = ('de','en')
 lang_fix = '.' + '-'.join(langs)
-prefix = 'data/wmt17/de-en/'
 subsets = 'commoncrawl', 'europarl-v7', 'news-commentary-v12', 'rapid2016'
 for x in subsets:
-    path_prefix = prefix + x + lang_fix
+    path_prefix = args.prefix + x + lang_fix
     paths_in = [path_prefix+'.'+lang for lang in langs]
     paths_out = [path_prefix+'.clean.'+lang for lang in langs]
     latin = lambda s: all("LATIN" in b or "PUNCT" in b or "DIGIT" in b or "SPAC" in b for b in map(unicodeblock.blocks.of,s) if b is not None)

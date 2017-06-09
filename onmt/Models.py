@@ -9,7 +9,8 @@ class Encoder(nn.Module):
 
     def __init__(self, opt, dicts):
         super(Encoder, self).__init__()
-        self.detach_embedding = opt.detach_embedding if hasattr(opt, 'detach_embedding') else 0
+        self.detach_embed = opt.detach_embed if hasattr(opt, 'detach_embed') else 0
+        self.fix_embed = opt.fix_embed
         self.count = 0
         self.layers = opt.layers
         self.dropout = nn.Dropout(opt.dropout)
@@ -36,14 +37,14 @@ class Encoder(nn.Module):
             emb = self.word_lut(input[0])
         else:
             emb = self.word_lut(input)
-        if self.count < self.detach_embedding:
+        if self.fix_embed or self.count < self.detach_embed:
             emb = emb.detach()
         emb = self.dropout(emb)
         if isinstance(input, tuple):
             emb = pack(emb, input[1])
         outputs, hidden_t = self.rnn(emb, hidden)
         if isinstance(input, tuple):
-            outputs = unpack(outputs)[0]
+            outputs = self.dropout(unpack(outputs)[0])
         self.count += 1
         return hidden_t, outputs
 
