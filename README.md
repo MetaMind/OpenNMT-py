@@ -116,10 +116,9 @@ python get_embed_for_dict.py data/iwslt16.tok.low.src.dict -glove
 ### 2) Train the model.
 
 ```bash
-python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.600h.400d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove.chargram > iwslt16.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model snapshots/iwslt16.tok.low.600h.400d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove.chargram > iwslt16.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
 
-python train.py -data data/iwslt16.tok.low.train.pt  -save_model iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove > iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove.log
-
+python train.py -data data/iwslt16.tok.low.train.pt  -save_model snapshots/iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove_char.model -gpus 0 -brnn -rnn_size 600 -word_vec_size 300 -fix_embed -pre_word_vecs_enc data/iwslt16.tok.low.src.dict.glove > iwslt16.tok.low.600h.300d.2dp.brnn.2l.fixed_glove.log
 ```
 
 ### 3) Translate sentences.
@@ -197,38 +196,34 @@ python get_embed_for_dict.py data/commoncrawl.clean.tok.low.src.dict -glove -cha
 python preprocess.py -train_src data/wmt17/de-en/train.clean.en.tok.low -train_tgt data/wmt17/de-en/train.clean.de.tok.low -valid_src data/wmt17/de-en/newstest2013.en.tok.low -valid_tgt data/wmt17/de-en/newstest2013.de.tok.low -save_data data/wmt17.clean.tok.low -lower -seq_length 75
 python get_embed_for_dict.py data/wmt17.clean.tok.low.src.dict -glove -d_hid 300
 python get_embed_for_dict.py data/wmt17.clean.tok.low.src.dict -glove -chargrams -d_hid 400
-
 ```
+
 ### 2) Train the model
 
 ```bash
 # Train fixed glove+char models
 for corpus in wmt17
 do
-python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model snapshots/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
 done
 
 # Train fixed glove models
 for corpus in wmt17
 do
-python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model snapshots/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
 done
 
 # Train fixed glove+char models
 for corpus in news-commentary rapid europarl commoncrawl
 do
-python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model snapshots/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.model -gpus 0 -brnn -word_vec_size 400 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove.chargram -fix_embed > logs/${corpus}.clean.tok.low.600h.400d.2l.brnn.2dp.fixed_glove_char.log
 done
 
 # Train fixed glove models
 for corpus in news-commentary rapid europarl commoncrawl
 do
-python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model ${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
+python train.py -data data/${corpus}.clean.tok.low.train.pt  -save_model snapshots/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.model -gpus 0 -brnn -word_vec_size 300 -pre_word_vecs_enc data/${corpus}.clean.tok.low.src.dict.glove -fix_embed > logs/${corpus}.clean.tok.low.600h.300d.2l.brnn.2dp.fixed_glove.log
 done
-
-
-
-
 ```
 
 ### 3) Translate sentences.
