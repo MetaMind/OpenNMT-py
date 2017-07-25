@@ -7,11 +7,11 @@ import torch
 
 
 
-def cache_glove():
+def cache_glove(glove_prefix):
     stoi = {}
     itos = []
     vectors = []
-    fname = 'glove.840B.300d.txt'
+    fname = glove_prefix+'.txt'
 
     with open(fname, 'rb') as f:
         for l in f:
@@ -26,7 +26,7 @@ def cache_glove():
             itos.append(word)
             vectors.append([float(x) for x in vector])
     d = {'stoi': stoi, 'itos': itos, 'vectors': torch.FloatTensor(vectors)}
-    torch.save(d, 'glove.840B.300d.pt')
+    torch.save(d, glove_prefix+'.pt')
 
 def cache_chargrams():
     stoi = {}
@@ -57,10 +57,11 @@ def cache_chargrams():
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('embeddings')
+    parser.add_argument('-glove_prefix', default='glove.840B.300d', type=str)
     args = parser.parse_args()
     
     if args.embeddings == 'glove':
-        cache_glove()
+        cache_glove(args.glove_prefix)
     else:
         cache_chargrams()
 

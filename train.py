@@ -30,9 +30,9 @@ parser.add_argument('-train_from', default='', type=str,
 
 parser.add_argument('-layers', type=int, default=2,
                     help='Number of layers in the LSTM encoder/decoder')
-parser.add_argument('-rnn_size', type=int, default=500,
+parser.add_argument('-rnn_size', type=int, default=600,
                     help='Size of LSTM hidden states')
-parser.add_argument('-word_vec_size', type=int, default=500,
+parser.add_argument('-word_vec_size', type=int, default=400,
                     help='Word embedding sizes')
 parser.add_argument('-input_feed', type=int, default=1,
                     help="""Feed the context vector at each time step as
@@ -52,11 +52,11 @@ parser.add_argument('-brnn_merge', default='concat',
 
 parser.add_argument('-batch_size', type=int, default=64,
                     help='Maximum batch size')
-parser.add_argument('-max_generator_batches', type=int, default=32,
+parser.add_argument('-max_generator_batches', type=int, default=100,
                     help="""Maximum batches of words in a sequence to run
                     the generator on in parallel. Higher is faster, but uses
                     more memory.""")
-parser.add_argument('-epochs', type=int, default=50,
+parser.add_argument('-epochs', type=int, default=1000,
                     help='Number of training epochs')
 parser.add_argument('-start_epoch', type=int, default=1,
                     help='The epoch from which to start')
@@ -68,7 +68,7 @@ parser.add_argument('-optim', default='sgd',
 parser.add_argument('-max_grad_norm', type=float, default=5,
                     help="""If the norm of the gradient vector exceeds this,
                     renormalize it to have the norm equal to max_grad_norm""")
-parser.add_argument('-dropout', type=float, default=0.3,
+parser.add_argument('-dropout', type=float, default=0.2,
                     help='Dropout probability; applied between LSTM stacks.')
 parser.add_argument('-curriculum', action="store_true",
                     help="""For this many epochs, order the minibatches based
@@ -83,12 +83,14 @@ parser.add_argument('-learning_rate', type=float, default=1.0,
                     help="""Starting learning rate. If adagrad/adadelta/adam is
                     used, then this is the global learning rate. Recommended
                     settings: sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
+parser.add_argument('-lr_cutoff', type=float, default=0.03, 
+                    help='below this the training will be stopped')
 parser.add_argument('-learning_rate_decay', type=float, default=0.5,
                     help="""If update_learning_rate, decay learning rate by
                     this much if (i) perplexity does not decrease on the
                     validation set or (ii) epoch has gone past
                     start_decay_at""")
-parser.add_argument('-start_decay_at', type=int, default=8,
+parser.add_argument('-start_decay_at', type=int, default=1000,
                     help="""Start decaying every epoch after and including this
                     epoch""")
 
@@ -102,10 +104,11 @@ parser.add_argument('-pre_word_vecs_dec',
                     help="""If a valid path is specified, then this will load
                     pretrained word embeddings on the decoder side.
                     See README for specific formatting instructions.""")
-parser.add_argument('-detach_embedding', default=0, type=int)
+parser.add_argument('-detach_embed', default=0, type=int)
+parser.add_argument('-fix_embed', action='store_true')
 
 # GPU
-parser.add_argument('-gpus', default=[], nargs='+', type=int,
+parser.add_argument('-gpus', default=[0], nargs='+', type=int,
                     help="Use CUDA on the listed devices.")
 
 parser.add_argument('-log_interval', type=int, default=50,
@@ -246,7 +249,7 @@ def trainModel(model, trainData, validData, dataset, optim):
         print('Validation accuracy: %g' % (valid_acc*100))
 
         #  (3) update the learning rate
-        optim.updateLearningRate(valid_loss, epoch)
+        optim.updateLearningRate(valid_ppl, epoch)
 
         model_state_dict = model.module.state_dict() if len(opt.gpus) > 1 else model.state_dict()
         model_state_dict = {k: v for k, v in model_state_dict.items() if 'generator' not in k}
@@ -258,10 +261,16 @@ def trainModel(model, trainData, validData, dataset, optim):
             'dicts': dataset['dicts'],
             'opt': opt,
             'epoch': epoch,
-            'optim': optim
+            'optim': optim,
+            'ppl': valid_ppl,
+            'loss': valid_loss,
+            'acc': valid_acc
         }
         torch.save(checkpoint,
-                   '%s_acc_%.2f_ppl_%.2f_e%d.pt' % (opt.save_model, 100*valid_acc, valid_ppl, epoch))
+                   '%s_ppl_%.2f_acc_%.2f_loss_%.2f_e%d.pt' % (opt.save_model, valid_ppl, 100*valid_acc, valid_loss, epoch))
+        if optim.lr < opt.lr_cutoff:
+            print('Learning rate decayed below cutoff: {} < {}'.format(optim.lr, opt.lr_cutoff))
+            break
 
 def main():
 
